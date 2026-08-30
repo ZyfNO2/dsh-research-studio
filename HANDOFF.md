@@ -25,7 +25,7 @@ The overarching product specification is governed by `docs/Academic_Tailor_Resea
 | **Phase 0** | RPD / Prototype / Architecture | ✅ COMPLETE | Product requirements, standalone HTML prototype, DSH extension point mapping. |
 | **Phase 1** | Plugin Architecture & Executable Skeleton | ✅ COMPLETE | Domain contracts, storage adapter, Host service, snapshot Remote, Web UI view, profile bundle. |
 | **Phase 2** | **Research Brief Usable Vertical Slice** | ✅ **COMPLETE** | **Project lifecycle, Application layer, versioned Artifacts, Gate engine, Stage-0 Skill bridge, Tutor dialog.** |
-| **Phase 3** | **Evidence & Research Design Core** | 🟡 **P3-0 COMPLETE; P3-A NEXT** | **Companion build closure and external Remote bridge complete; Evidence cards follow.** |
+| **Phase 3** | **Evidence & Research Design Core** | 🟡 **P3-A/B/C product slices complete; Web E2E pending** | **Versioned Evidence, Baseline freeze, and auditable Research Design gate are implemented in the product repository.** |
 | **Phase 4** | BuildSpec, Coding Agent & Experiment Loop | ⚪ PLANNED | Repo inspection, BuildSpec blueprints, DSH coding agent dispatch, Experiment ledger, Backflow. |
 | **Phase 5** | Paper Generation, Claim Trace & Research Audit | ⚪ PLANNED | Claim-to-Evidence trace, multi-perspective reviewer simulation, paper drafting, scientific audit. |
 | **Phase 6** | Autonomous Research, Tree Search & Multi-Agent | ⚪ PLANNED | Multi-branch exploration, autonomous research teams, persistent memory, custom presets. |
@@ -37,6 +37,17 @@ The overarching product specification is governed by `docs/Academic_Tailor_Resea
 The Phase 3 specification is [docs/Phase_3_Evidence_and_Research_Design_Spec.md](docs/Phase_3_Evidence_and_Research_Design_Spec.md). P3-0 is complete: `pnpm run build`, `pnpm run typecheck`, and `pnpm run test` pass in this repository with the companion checkout present.
 
 The explicit `src/integration/remote-contract.ts` bridge is intentional. DSH's Typert generator currently only recognizes protocol declarations from its own workspace, so an external companion package cannot generate its Remote artifacts. The bridge uses public `TypertRemoteContribution` contracts and the documented Host SRC dispatch path; do not copy or modify DSH Core to evade this boundary.
+
+### Phase 3 implementation record (2026-08-30)
+
+- `4703d95`: P3-A Evidence vertical slice — versioned `PaperCard` / `EvidenceCard`, `EVIDENCE_READY`, Host Remote and real UI state.
+- `1832b3e`: P3-B Baseline vertical slice — versioned candidates, traceable freeze, and revision invalidation.
+- `1cfa907`: P3-C Design core — pure Module / Interface / Compatibility / Claim contracts, deterministic `DESIGN_FROZEN`, Host storage/application/Remote, and projection UI.
+- `d92a4bc`: Research Design UI artifact-entry path — submits Module, Compatibility, and Claim JSON artifacts through the Host Remote; no local mock fallback.
+
+Product verification at `d92a4bc`: `pnpm run typecheck`, `pnpm run test` (9 files / 23 tests), and `pnpm run build` all pass with `NODE_OPTIONS=--max-old-space-size=4096` on this Windows host.
+
+The remaining Phase 3 acceptance step is a real companion DSH Web mount and Remote round trip. The external target `F:\RStudio\deepseek-harness` has clean tracked Research Studio plugin paths, but unrelated untracked generated files beneath `packages/api/remotes`; preserve those. Temporarily synchronize only the three Research Studio package trees from this product repo to their matching target fixture paths, run the documented `pnpm dsh web` / profile test, then do not commit the target changes.
 
 ---
 
