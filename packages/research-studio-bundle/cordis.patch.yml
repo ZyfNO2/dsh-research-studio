@@ -1,0 +1,10 @@
+# Academic Research Studio profile layer for the DSH Web surface.
+# Seed data is opt-in here and is labelled in both the Host record and Client UI.
+- insert:
+    - id: research-studio
+      name: '@deepseek-ai/dsh-research-studio'
+      config:
+        seedDemoProject: true
+
+    - id: ui-research-studio
+      name: '@deepseek-ai/dsh-client-ui-research-studio'

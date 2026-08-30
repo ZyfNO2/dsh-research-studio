@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Research Studio Prototype</title>
+<style>
+  :root{
+    --bg:#06101f;
+    --panel:#0c1628;
+    --panel2:#0f1b31;
+    --line:#22314e;
+    --text:#eaf2ff;
+    --muted:#8ea0bf;
+    --cyan:#36d8ff;
+    --blue:#5d7cff;
+    --green:#22e6ad;
+    --amber:#ffc65c;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    min-height:100vh;
+    color:var(--text);
+    font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;
+    background:
+      radial-gradient(circle at 85% 10%, rgba(39,94,190,.25), transparent 28%),
+      radial-gradient(circle at 15% 90%, rgba(11,173,224,.10), transparent 30%),
+      linear-gradient(180deg,#06101f,#08111e 48%,#050b14);
+  }
+  .app{max-width:1500px;margin:0 auto;padding:28px}
+  .topbar{
+    display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;
+  }
+  .brand{display:flex;gap:12px;align-items:center}
+  .logo{
+    width:38px;height:38px;border-radius:12px;
+    background:linear-gradient(135deg,var(--cyan),var(--blue));
+    box-shadow:0 0 28px rgba(54,216,255,.25);
+  }
+  .brand h1{font-size:18px;margin:0}
+  .brand p{margin:3px 0 0;color:var(--muted);font-size:12px}
+  .badge{
+    border:1px solid var(--line);padding:8px 12px;border-radius:999px;color:#b9c6df;font-size:12px;
+    background:rgba(11,21,39,.72)
+  }
+
+  .stagebar{
+    display:flex;gap:10px;align-items:center;overflow:auto;padding:6px 0 18px;
+  }
+  .stage{
+    white-space:nowrap;border:1px solid var(--line);background:#0b1425;color:#9aa8c0;
+    border-radius:999px;padding:11px 17px;cursor:pointer;transition:.2s;
+  }
+  .stage:hover{border-color:#39506f;color:white}
+  .stage.active{
+    color:white;border-color:transparent;
+    background:linear-gradient(90deg,#2cbfe8,#587bff);
+    box-shadow:0 8px 28px rgba(50,177,255,.24)
+  }
+
+  .panel{
+    border:1px solid var(--line);
+    background:linear-gradient(180deg,rgba(14,25,45,.94),rgba(10,19,34,.94));
+    border-radius:20px;padding:20px;margin-bottom:18px;
+    box-shadow:0 18px 50px rgba(0,0,0,.18)
+  }
+  .panel-head{display:flex;justify-content:space-between;align-items:center;gap:20px}
+  .eyebrow{font-size:10px;color:#adc2e6;letter-spacing:.08em}
+  .title{font-size:18px;font-weight:750;margin-top:4px}
+  .count{font-size:12px;color:#a9bad8;border:1px solid var(--line);padding:7px 10px;border-radius:999px}
+
+  .object-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 12px}
+  .objtab{
+    border:1px solid var(--line);color:#a9b5cb;background:#0a1426;padding:10px 16px;border-radius:999px;cursor:pointer
+  }
+  .objtab.active{
+    background:#5974ff;color:white;border-color:#5974ff;box-shadow:0 8px 22px rgba(93,116,255,.18)
+  }
+
+  .hint{font-size:13px;color:var(--muted);margin:4px 0 16px}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .card{
+    border:1px solid #273754;background:rgba(12,22,40,.88);border-radius:18px;padding:16px;min-height:150px
+  }
+  .card.selected{outline:1px solid #5b7cff;background:#0f1a30}
+  .card-top{display:flex;justify-content:space-between;gap:12px}
+  .card h3{margin:0;font-size:17px}
+  .state{font-size:11px;color:var(--green)}
+  .meta{color:#a7b4ca;font-size:12px;line-height:1.65;margin:10px 0}
+  .actions{display:flex;gap:7px;flex-wrap:wrap}
+  .btn{
+    border:1px solid #2c3d5c;background:#111d33;color:#cbd7eb;border-radius:10px;padding:8px 11px;font-size:12px;cursor:pointer
+  }
+  .btn.primary{background:#5778ff;border-color:#5778ff;color:white}
+  .btn.ghost:hover{background:#17243e}
+
+  .substeps{
+    display:flex;gap:10px;flex-wrap:wrap;margin:4px 0 18px;
+  }
+  .sub{
+    border:1px solid #1d947f;color:#39e2b3;background:#071b1b;
+    border-radius:999px;padding:11px 16px;cursor:pointer;font-size:13px
+  }
+  .sub.optional{border-color:#3d4a64;color:#9eabc0;background:#0b1322}
+  .sub.active{
+    border-color:#36d8ff;color:white;background:linear-gradient(90deg,#1da9cc,#5179ff);
+    box-shadow:0 6px 20px rgba(54,216,255,.18)
+  }
+
+  .workspace{
+    display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px
+  }
+  .contentbox,.tutor{
+    border:1px solid var(--line);border-radius:18px;background:#0a1425;padding:18px
+  }
+  .contentbox h2{font-size:16px;margin:0 0 4px}
+  .contentbox p{color:var(--muted);font-size:13px;line-height:1.65}
+  .fields{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+  .field{
+    border:1px solid #22314d;background:#0d192d;border-radius:12px;padding:12px
+  }
+  .field b{font-size:12px;display:block;margin-bottom:5px}
+  .field span{font-size:12px;color:#94a4be}
+
+  .tutor-head{display:flex;justify-content:space-between;align-items:center}
+  .tutor h3{margin:0;font-size:14px}
+  .mode{font-size:11px;color:#7be3ff}
+  .bubble{
+    margin-top:14px;padding:13px;border-radius:14px;background:#101d33;color:#c5d2e6;font-size:12px;line-height:1.65
+  }
+  .quick{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+  .quick button{
+    width:100%;text-align:left;border:1px solid #273958;background:#0d1729;color:#afbed6;
+    border-radius:11px;padding:10px;cursor:pointer
+  }
+
+  .footerline{
+    display:flex;justify-content:space-between;align-items:center;gap:14px;margin-top:16px;
+    padding-top:14px;border-top:1px dashed #26344d;color:#7f91ac;font-size:11px
+  }
+
+  @media (max-width:1000px){
+    .grid{grid-template-columns:1fr}
+    .workspace{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="brand">
+      <div class="logo"></div>
+      <div>
+        <h1>Research Studio</h1>
+        <p>学术裁缝 · DSH Workflow Prototype</p>
+      </div>
+    </div>
+    <div class="badge">MVP Preset · 6 Stages</div>
+  </div>
+
+  <div class="stagebar" id="stagebar"></div>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <div class="eyebrow">RESEARCH OBJECT STUDIO</div>
+        <div class="title" id="stageTitle">2. Research Design</div>
+      </div>
+      <div class="count" id="stageCount">4 类研究对象</div>
+    </div>
+
+    <div class="object-tabs" id="objectTabs"></div>
+    <div class="hint" id="objectHint"></div>
+    <div class="grid" id="cards"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head" style="margin-bottom:14px">
+      <div>
+        <div class="eyebrow">OBJECT WORKFLOW</div>
+        <div class="title" id="objectTitle">Baseline A · 创作进度</div>
+      </div>
+      <div class="count">Artifact Driven</div>
+    </div>
+
+    <div class="substeps" id="substeps"></div>
+
+    <div class="workspace">
+      <div class="contentbox">
+        <h2 id="subTitle">① 基础档案</h2>
+        <p id="subDesc">确定 Baseline 的来源、任务、代码仓库、数据集、输入输出和指标。此阶段只做身份建档，不讨论改造方案。</p>
+
+        <div class="fields" id="fields"></div>
+
+        <div class="footerline">
+          <span>Gate：信息足够后才能进入下一子阶段</span>
+          <button class="btn primary" onclick="completeCurrent()">保存并继续</button>
+        </div>
+      </div>
+
+      <aside class="tutor">
+        <div class="tutor-head">
+          <h3>Research Tutor</h3>
+          <div class="mode">GUIDED</div>
+        </div>
+        <div class="bubble" id="tutorText">
+          先确认一个关键问题：你准备把哪一个公开实现作为真正的 Baseline A？如果有多个候选，我们先不做选择，先建立候选卡。
+        </div>
+        <div class="quick">
+          <button onclick="setTutor('我已经有明确 Baseline')">我已经有明确 Baseline</button>
+          <button onclick="setTutor('帮我从候选论文中选择')">帮我从候选论文中选择</button>
+          <button onclick="setTutor('先跳过，标记为 Unknown')">先跳过，标记为 Unknown</button>
+        </div>
+      </aside>
+    </div>
+  </section>
+</div>
+
+<script>
+const stages = [
+  ["0. Research Brief","研究建档"],
+  ["1. Evidence","文献与证据"],
+  ["2. Research Design","研究设计"],
+  ["3. BuildSpec","实现规格"],
+  ["4. Experiment","实验与诊断"],
+  ["5. Paper & Audit","论文与审计"]
+];
+
+const objectSets = {
+  "2. Research Design": {
+    hint:"像角色分级一样管理研究对象：Baseline 是核心骨架；Module 是候选创新；Reference 只提供证据；Claim 必须绑定验证结果。",
+    tabs:[
+      ["baseline","Baseline / Base"],
+      ["module","Module B / C"],
+      ["reference","References"],
+      ["claim","Claims"]
+    ]
+  }
+};
+
+const cardsByType = {
+  baseline:[
+    ["Baseline A","当前主基线","已建档 · 待复现","FoundationStereo / repo / metric"],
+    ["Candidate A2","候选基线","候选","更轻量，但复现证据不足"],
+    ["Candidate A3","候选基线","候选","指标更强，但算力超预算"]
+  ],
+  module:[
+    ["Module B","主要创新模块","设计中","针对 limitation L1 的 intervention"],
+    ["Module C","次要创新模块","候选","机制重叠待审查"],
+    ["Rejected B1","已拒绝模块","Rejected","计算量过高，保留决策记录"]
+  ],
+  reference:[
+    ["P-017","Module Source","Verified","支撑模块 B 的原始方法"],
+    ["P-024","Supporting Evidence","Verified","支撑 limitation L1"],
+    ["P-031","Competitor","Pending","需要补代码与指标"]
+  ],
+  claim:[
+    ["Claim C1","Main Claim","Proposed","尚未绑定实验结果"],
+    ["Claim C2","Supporting Claim","Inferred","已有文献支撑，无本项目实验"],
+    ["Claim C3","Rejected Claim","Rejected","消融结果不支持"]
+  ]
+};
+
+const subflows = {
+  baseline:[
+    ["① 基础档案","来源、任务、Repo、Dataset、输入输出、Metric。只做 Baseline 身份建档。"],
+    ["② 复现档案","固定 commit、环境、checkpoint、seed、官方指标和本地复现指标。"],
+    ["③ 机制解剖","梳理 backbone、数据流、loss、训练/推理路径。"],
+    ["④ Weakness Palette","把已知 limitation、失败案例、用户观察与未证实猜测分开记录。"],
+    ["⑤ Modification Surface","标出允许修改的位置、接口语义、风险与禁止修改区。"],
+    ["⑥ Baseline 问卷（可选）","导师式讨论：究竟想改善什么，是否值得改这个 Baseline。"],
+    ["⑦ 完成审阅","检查 reproducibility、compatibility 和 evidence gate，通过后才能锁定 Baseline A。"]
+  ],
+  module:[
+    ["① Module 来源","记录论文/代码来源、license、原始作用。"],
+    ["② 机制假设","明确它为什么可能解决当前 limitation。"],
+    ["③ 接口契约","输入输出语义、shape、mask、scale、ordering、gradient。"],
+    ["④ 工作量评估","实现成本、算力成本、实验成本。"],
+    ["⑤ 冲突检查","与其他模块是否机制重叠、接口冲突。"],
+    ["⑥ 候选对比（可选）","B1/B2/B3 多候选排序，不让第一想法直接落地。"],
+    ["⑦ 完成审阅","决定 Accepted / Rejected / Candidate。"]
+  ],
+  reference:[
+    ["① 论文卡","基础元数据、任务、数据集、指标、代码。"],
+    ["② 证据抽取","只抽取与当前问题相关的可引用证据。"],
+    ["③ 分类","Baseline / Module Source / Competitor / Supporting / Background。"],
+    ["④ 可复现性","代码、commit、license、checkpoint、环境。"],
+    ["⑤ 关联","绑定到 limitation、module、claim 或 experiment。"],
+    ["⑥ 完成审阅","防止引用漂移和无来源结论。"]
+  ],
+  claim:[
+    ["① Claim 草案","记录 proposed claim，不直接写成结论。"],
+    ["② Evidence 绑定","绑定 paper evidence 或 project result。"],
+    ["③ Experiment 绑定","标记哪个实验可以证伪它。"],
+    ["④ Guardrail","限制条件、适用范围、不能宣称的部分。"],
+    ["⑤ 状态判定","Proposed / Supported / Rejected / Unknown。"],
+    ["⑥ 完成审阅","只有 Supported Claim 才能进入最终论文。"]
+  ]
+};
+
+let currentStage = 2;
+let currentType = "baseline";
+let currentSub = 0;
+
+function renderStages(){
+  const el=document.getElementById("stagebar");
+  el.innerHTML="";
+  stages.forEach((s,i)=>{
+    const b=document.createElement("button");
+    b.className="stage"+(i===currentStage?" active":"");
+    b.textContent=s[0];
+    b.onclick=()=>{currentStage=i; renderStages(); renderStage();};
+    el.appendChild(b);
+  });
+}
+
+function renderStage(){
+  const label=stages[currentStage][0];
+  document.getElementById("stageTitle").textContent=label;
+
+  if(label==="2. Research Design"){
+    document.getElementById("stageCount").textContent="4 类研究对象";
+    renderObjectTabs();
+  }else{
+    document.getElementById("stageCount").textContent="MVP 简化视图";
+    document.getElementById("objectTabs").innerHTML="";
+    document.getElementById("objectHint").textContent=
+      "此 HTML 重点展示 Research Design 的“对象分级 + 对象内部子流程 + Tutor 辅导 + Gate”结构。其他阶段在正式 RPD 中采用相同 Contract 扩展。";
+    document.getElementById("cards").innerHTML=`
+      <div class="card selected">
+        <div class="card-top"><h3>${stages[currentStage][1]}</h3><span class="state">Stage</span></div>
+        <div class="meta">该阶段将通过 Stage Registry 挂载自己的 Skills、Artifacts、Tutor Prompt 和 Review Gate。</div>
+        <div class="actions"><button class="btn primary" onclick="currentStage=2;renderStages();renderStage()">查看 Research Design 示例</button></div>
+      </div>`;
+    document.getElementById("objectTitle").textContent="Stage Contract";
+    document.getElementById("substeps").innerHTML="";
+    document.getElementById("subTitle").textContent="可插拔 Stage";
+    document.getElementById("subDesc").textContent="6 个阶段只是 MVP Preset，不是固定架构。后续可恢复开题、导师分析、返修、答辩等完整流程。";
+    renderFields(["prerequisites","inputs / outputs","skills","tools","artifacts","gates"]);
+  }
+}
+
+function renderObjectTabs(){
+  const cfg=objectSets["2. Research Design"];
+  const tabs=document.getElementById("objectTabs");
+  tabs.innerHTML="";
+  cfg.tabs.forEach(([id,label])=>{
+    const b=document.createElement("button");
+    b.className="objtab"+(id===currentType?" active":"");
+    b.textContent=label;
+    b.onclick=()=>{currentType=id;currentSub=0;renderObjectTabs();};
+    tabs.appendChild(b);
+  });
+  document.getElementById("objectHint").textContent=cfg.hint;
+  renderCards();
+  renderSubflow();
+}
+
+function renderCards(){
+  const c=document.getElementById("cards");
+  c.innerHTML="";
+  cardsByType[currentType].forEach((x,i)=>{
+    const d=document.createElement("div");
+    d.className="card"+(i===0?" selected":"");
+    d.innerHTML=`
+      <div class="card-top">
+        <h3>${x[0]}</h3>
+        <span class="state">${x[2]}</span>
+      </div>
+      <div class="meta"><b>${x[1]}</b><br>${x[3]}</div>
+      <div class="actions">
+        <button class="btn primary">打开继续</button>
+        <button class="btn ghost">回退重写</button>
+        <button class="btn ghost">查看关系</button>
+      </div>`;
+    c.appendChild(d);
+  });
+}
+
+function renderSubflow(){
+  const labels={baseline:"Baseline A",module:"Module B",reference:"Reference",claim:"Claim"};
+  document.getElementById("objectTitle").textContent=labels[currentType]+" · 创作进度";
+  const el=document.getElementById("substeps");
+  el.innerHTML="";
+  subflows[currentType].forEach((s,i)=>{
+    const b=document.createElement("button");
+    b.className="sub"+(s[0].includes("可选")?" optional":"")+(i===currentSub?" active":"");
+    b.textContent=s[0];
+    b.onclick=()=>{currentSub=i;renderSubflow();};
+    el.appendChild(b);
+  });
+  const [title,desc]=subflows[currentType][currentSub];
+  document.getElementById("subTitle").textContent=title;
+  document.getElementById("subDesc").textContent=desc;
+  renderFieldsForType();
+  renderTutor();
+}
+
+function renderFields(labels){
+  const f=document.getElementById("fields");
+  f.innerHTML="";
+  labels.forEach(x=>{
+    f.innerHTML+=`<div class="field"><b>${x}</b><span>Artifact field / 待填写</span></div>`;
+  });
+}
+
+function renderFieldsForType(){
+  const map={
+    baseline:["Source Paper","Repository / Commit","Task / Dataset","Input / Output","Metric","Status"],
+    module:["Provenance","Original Role","Proposed Role","Input Contract","Output Contract","Expected Effect"],
+    reference:["Paper ID","Evidence Type","Code / License","Supports","Reproducibility","Verification"],
+    claim:["Claim Text","Evidence IDs","Experiment IDs","Scope","Status","Risk"]
+  };
+  renderFields(map[currentType]);
+}
+
+function renderTutor(){
+  const prompts={
+    baseline:"先确认一个关键问题：这个 Baseline 是“你已经复现过的主骨架”，还是只是当前最喜欢的论文？两者在系统里状态不同。",
+    module:"先不要急着把模块接进去。你认为它解决的是 Baseline 的哪一个具体 mechanism，而不仅仅是哪一个指标？",
+    reference:"这篇论文准备扮演什么角色？是 Baseline 候选、模块来源、竞争方法，还是只是背景引用？",
+    claim:"这条 Claim 现在有哪一条实验能够直接把它证伪？如果没有，就先保持 Proposed。"
+  };
+  document.getElementById("tutorText").textContent=prompts[currentType];
+}
+
+function completeCurrent(){
+  if(currentSub<subflows[currentType].length-1){
+    currentSub++;
+    renderSubflow();
+  }
+}
+
+function setTutor(msg){
+  document.getElementById("tutorText").textContent=
+    "已选择：「"+msg+"」。正式插件里这里会更新 Research State，并由当前 Stage 的 tutorPrompt 决定下一个问题，而不是直接生成整套方案。";
+}
+
+renderStages();
+renderStage();
+</script>
+</body>
+</html>
