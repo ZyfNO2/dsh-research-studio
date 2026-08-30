@@ -122,6 +122,30 @@ export interface EvidenceProjection {
   readonly cards: readonly EvidenceCard[]
   readonly gate: GateResult | null
 }
+/** Reproduction evidence is recorded, never inferred from a repository URL. */
+export type ReproductionStatus = 'unknown' | 'planned' | 'partial' | 'verified' | 'failed'
+/** Candidate baseline metadata; it remains mutable until a separate freeze artifact is accepted. */
+export interface BaselineCard {
+  readonly id: string
+  readonly title: string
+  readonly paperIds: readonly string[]
+  readonly repository?: { readonly url: string; readonly commit: string; readonly license?: string }
+  readonly task: string
+  readonly datasetSplit: string
+  readonly environment?: string
+  readonly checkpoint?: string
+  readonly reproduction: ReproductionStatus
+  readonly knownDeviations: readonly string[]
+  readonly evidenceIds: readonly string[]
+}
+/** Immutable decision record selecting exactly one candidate baseline. */
+export interface BaselineFreeze {
+  readonly baselineId: string
+  readonly rationale: string
+  readonly acceptedDeviationIds: readonly string[]
+  readonly frozenBy: string
+  readonly frozenAt: string
+}
 
 /** JSON-safe value accepted by durable artifacts and Remote projections. */
 export type ResearchJsonValue =
