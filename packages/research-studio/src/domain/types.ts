@@ -82,6 +82,41 @@ export interface ToolRef {
 /** Distinguishes authored state from explicit demonstration state. */
 export type ResearchDataOrigin = 'user' | 'seed'
 
+/** Verification state intentionally separate from an evidence statement's polarity. */
+export type VerificationStatus = 'unverified' | 'verified' | 'disputed' | 'retracted'
+/** Relationship of a source statement to its linked research target. */
+export type EvidencePolarity = 'supports' | 'contradicts' | 'context' | 'unknown'
+/** Supported primary-source categories for the first Evidence slice. */
+export type EvidenceSourceKind = 'paper' | 'official-docs' | 'repository' | 'dataset' | 'other'
+/** Durable, human-reviewable source locator; no inferred citation fields. */
+export interface SourceLocator { readonly url: string; readonly locator: string }
+/** Deliberately small, stable target vocabulary for EVIDENCE_READY. */
+export type EvidenceTarget = 'brief.problemDomain' | 'brief.constraints' | 'baseline.candidate'
+/** Manually recorded bibliographic or primary-source metadata. */
+export interface PaperCard {
+  readonly id: string
+  readonly title: string
+  readonly authors: readonly string[]
+  readonly year?: number
+  readonly venue?: string
+  readonly identifiers: { readonly doi?: string; readonly arxiv?: string; readonly url?: string }
+  readonly sourceKind: EvidenceSourceKind
+  readonly provenance: SourceLocator
+  readonly verification: VerificationStatus
+  readonly license?: string
+}
+/** A localized statement, never an automatically promoted performance claim. */
+export interface EvidenceCard {
+  readonly id: string
+  readonly paperId: string
+  readonly locator: SourceLocator
+  readonly statement: string
+  readonly polarity: EvidencePolarity
+  readonly supports: readonly EvidenceTarget[]
+  readonly verification: VerificationStatus
+  readonly reviewerNote?: string
+}
+
 /** JSON-safe value accepted by durable artifacts and Remote projections. */
 export type ResearchJsonValue =
   | string
