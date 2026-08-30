@@ -19,12 +19,14 @@ import type {
   CreateResearchProjectRequest,
   EvaluateResearchBriefRequest,
   EvaluateEvidenceReadyRequest,
+  FreezeBaselineRequest,
   RenameResearchProjectRequest,
   ResearchJsonValue,
   ResearchStudioSnapshot,
   SelectResearchProjectRequest,
   SuggestResearchBriefTutorRequest,
   SaveEvidenceCardRequest,
+  SaveBaselineCardRequest,
   SavePaperCardRequest,
   TutorSuggestion,
   UpdateResearchBriefRequest,
@@ -43,6 +45,8 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     savePaperCard: (request: SavePaperCardRequest) => Promise<RemoteResult<ResearchStudioSnapshot>>
     saveEvidenceCard: (request: SaveEvidenceCardRequest) => Promise<RemoteResult<ResearchStudioSnapshot>>
     evaluateEvidenceReady: (request: EvaluateEvidenceReadyRequest) => Promise<RemoteResult<ResearchStudioSnapshot>>
+    saveBaselineCard: (request: SaveBaselineCardRequest) => Promise<RemoteResult<ResearchStudioSnapshot>>
+    freezeBaseline: (request: FreezeBaselineRequest) => Promise<RemoteResult<ResearchStudioSnapshot>>
   }
   interface TypertRemoteMap {
     'researchStudio/snapshot': () => Promise<RemoteResult<ResearchStudioSnapshot>>
@@ -56,6 +60,8 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     'researchStudio/savePaperCard': (request: SavePaperCardRequest) => Promise<RemoteResult<ResearchStudioSnapshot>>
     'researchStudio/saveEvidenceCard': (request: SaveEvidenceCardRequest) => Promise<RemoteResult<ResearchStudioSnapshot>>
     'researchStudio/evaluateEvidenceReady': (request: EvaluateEvidenceReadyRequest) => Promise<RemoteResult<ResearchStudioSnapshot>>
+    'researchStudio/saveBaselineCard': (request: SaveBaselineCardRequest) => Promise<RemoteResult<ResearchStudioSnapshot>>
+    'researchStudio/freezeBaseline': (request: FreezeBaselineRequest) => Promise<RemoteResult<ResearchStudioSnapshot>>
   }
   interface TypertRemoteNamespaceMap {
     researchStudio: TypertRemoteNamespace$726573656172636853747564696f
@@ -87,6 +93,19 @@ const gate = z.object({
   status: z.enum(['pass', 'pass-with-warnings', 'fail', 'blocked']), reasons: z.array(z.string()),
   missing: z.array(z.string()), recommendedBackflow: z.array(stringId),
 })
+// Deliberately erase the deep inferred schema type at this cross-workspace boundary.
+// The runtime codec remains strict, while TypeScript avoids re-expanding it for every descriptor.
+const baselineCard: z.ZodType = z.object({
+  id: stringId, title: z.string(), paperIds: z.array(stringId),
+  repository: z.object({ url: z.string(), commit: z.string(), license: z.string().optional() }).optional(),
+  task: z.string(), datasetSplit: z.string(), environment: z.string().optional(), checkpoint: z.string().optional(),
+  reproduction: z.enum(['unknown', 'planned', 'partial', 'verified', 'failed']),
+  knownDeviations: z.array(z.string()), evidenceIds: z.array(stringId),
+})
+const baselineFreeze: z.ZodType = z.object({
+  baselineId: stringId, rationale: z.string(), acceptedDeviationIds: z.array(stringId),
+  frozenBy: z.string(), frozenAt: z.string(),
+})
 const snapshot = z.object({
   runtime: z.literal('host'), projects: z.array(project), project: project.nullable(),
   preset: z.object({ id: stringId, version: z.string(), title: z.string(), stageIds: z.array(stringId) }),
@@ -104,6 +123,10 @@ const snapshot = z.object({
   evidence: z.object({
     papers: z.array(z.object({ id: stringId, title: z.string(), authors: z.array(z.string()), year: z.number().optional(), venue: z.string().optional(), identifiers: z.object({ doi: z.string().optional(), arxiv: z.string().optional(), url: z.string().optional() }), sourceKind: z.enum(['paper', 'official-docs', 'repository', 'dataset', 'other']), provenance: z.object({ url: z.string(), locator: z.string() }), verification: z.enum(['unverified', 'verified', 'disputed', 'retracted']), license: z.string().optional() })),
     cards: z.array(z.object({ id: stringId, paperId: stringId, locator: z.object({ url: z.string(), locator: z.string() }), statement: z.string(), polarity: z.enum(['supports', 'contradicts', 'context', 'unknown']), supports: z.array(z.enum(['brief.problemDomain', 'brief.constraints', 'baseline.candidate'])), verification: z.enum(['unverified', 'verified', 'disputed', 'retracted']), reviewerNote: z.string().optional() })),
+    gate: gate.nullable(),
+  }),
+  baseline: z.object({
+    cards: z.array(baselineCard), freeze: baselineFreeze.nullable(),
     gate: gate.nullable(),
   }),
   unlockedStageIds: z.array(stringId),
@@ -153,6 +176,8 @@ export const TYPERT_REMOTE: TypertRemoteContribution = {
     descriptor('savePaperCard', snapshotResult, { typeSymbol: '@deepseek-ai/dsh-research-studio/types#SavePaperCardRequest', schema: z.object({ projectId: stringId, card: z.object({ id: stringId, title: z.string(), authors: z.array(z.string()), year: z.number().optional(), venue: z.string().optional(), identifiers: z.object({ doi: z.string().optional(), arxiv: z.string().optional(), url: z.string().optional() }), sourceKind: z.enum(['paper', 'official-docs', 'repository', 'dataset', 'other']), provenance: z.object({ url: z.string(), locator: z.string() }), verification: z.enum(['unverified', 'verified', 'disputed', 'retracted']), license: z.string().optional() }) }) }),
     descriptor('saveEvidenceCard', snapshotResult, { typeSymbol: '@deepseek-ai/dsh-research-studio/types#SaveEvidenceCardRequest', schema: z.object({ projectId: stringId, card: z.object({ id: stringId, paperId: stringId, locator: z.object({ url: z.string(), locator: z.string() }), statement: z.string(), polarity: z.enum(['supports', 'contradicts', 'context', 'unknown']), supports: z.array(z.enum(['brief.problemDomain', 'brief.constraints', 'baseline.candidate'])), verification: z.enum(['unverified', 'verified', 'disputed', 'retracted']), reviewerNote: z.string().optional() }) }) }),
     descriptor('evaluateEvidenceReady', snapshotResult, { typeSymbol: '@deepseek-ai/dsh-research-studio/types#EvaluateEvidenceReadyRequest', schema: z.object({ projectId: stringId }) }),
+    descriptor('saveBaselineCard', snapshotResult, { typeSymbol: '@deepseek-ai/dsh-research-studio/types#SaveBaselineCardRequest', schema: z.object({ projectId: stringId, card: baselineCard }) }),
+    descriptor('freezeBaseline', snapshotResult, { typeSymbol: '@deepseek-ai/dsh-research-studio/types#FreezeBaselineRequest', schema: z.object({ projectId: stringId, freeze: baselineFreeze }) }),
   ],
 }
 

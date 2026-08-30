@@ -122,6 +122,12 @@ export interface EvidenceProjection {
   readonly cards: readonly EvidenceCard[]
   readonly gate: GateResult | null
 }
+/** Host projection of baseline candidates and the sole active freeze decision. */
+export interface BaselineProjection {
+  readonly cards: readonly BaselineCard[]
+  readonly freeze: BaselineFreeze | null
+  readonly gate: GateResult | null
+}
 /** Reproduction evidence is recorded, never inferred from a repository URL. */
 export type ReproductionStatus = 'unknown' | 'planned' | 'partial' | 'verified' | 'failed'
 /** Candidate baseline metadata; it remains mutable until a separate freeze artifact is accepted. */
@@ -407,6 +413,7 @@ export interface ResearchStudioSnapshot {
   readonly briefHistory: readonly ArtifactRecord[]
   readonly gate: GateResult | null
   readonly evidence: EvidenceProjection
+  readonly baseline: BaselineProjection
   readonly unlockedStageIds: readonly StageId[]
 }
 
@@ -440,3 +447,5 @@ export interface SavePaperCardRequest { readonly projectId: string; readonly car
 export interface SaveEvidenceCardRequest { readonly projectId: string; readonly card: EvidenceCard }
 /** Evaluate EVIDENCE_READY over the current persisted Evidence set. */
 export interface EvaluateEvidenceReadyRequest { readonly projectId: string }
+export interface SaveBaselineCardRequest { readonly projectId: string; readonly card: BaselineCard }
+export interface FreezeBaselineRequest { readonly projectId: string; readonly freeze: BaselineFreeze }

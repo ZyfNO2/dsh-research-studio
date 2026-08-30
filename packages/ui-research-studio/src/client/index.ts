@@ -49,6 +49,8 @@ export async function apply(ctx: Context): Promise<() => Promise<void>> {
     evaluateEvidenceReady: async request => ctx.remote.researchStudio.evaluateEvidenceReady(request),
     savePaperCard: async request => ctx.remote.researchStudio.savePaperCard(request),
     saveEvidenceCard: async request => ctx.remote.researchStudio.saveEvidenceCard(request),
+    saveBaselineCard: async request => ctx.remote.researchStudio.saveBaselineCard(request),
+    freezeBaseline: async request => ctx.remote.researchStudio.freezeBaseline(request),
   })
   ctx.slots.inject('conversation.view', () => ctx.slots.register({
     name: 'conversation.view',

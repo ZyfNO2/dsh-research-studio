@@ -9,9 +9,11 @@ import type {
   CreateResearchProjectRequest,
   EvaluateResearchBriefRequest,
   EvaluateEvidenceReadyRequest,
+  FreezeBaselineRequest,
   RenameResearchProjectRequest,
   ResearchStudioSnapshot,
   SaveEvidenceCardRequest,
+  SaveBaselineCardRequest,
   SavePaperCardRequest,
   SelectResearchProjectRequest,
   SuggestResearchBriefTutorRequest,
@@ -150,6 +152,22 @@ export class ResearchStudioController extends TypertRemoteService {
   @Remote
   evaluateEvidenceReady(request: EvaluateEvidenceReadyRequest): Promise<ResearchStudioSnapshot> {
     return this.map(() => this.ctx.researchStudio.application.evaluateEvidenceReady(ResearchProjectId(request.projectId)))
+  }
+
+  /** Save one candidate BaselineCard and preserve revision history. */
+  @Remote
+  saveBaselineCard(request: SaveBaselineCardRequest): Promise<ResearchStudioSnapshot> {
+    return this.map(() => this.ctx.researchStudio.application.saveBaselineCard(
+      ResearchProjectId(request.projectId), request.card,
+    ))
+  }
+
+  /** Freeze a reproducible baseline decision after deterministic validation. */
+  @Remote
+  freezeBaseline(request: FreezeBaselineRequest): Promise<ResearchStudioSnapshot> {
+    return this.map(() => this.ctx.researchStudio.application.freezeBaseline(
+      ResearchProjectId(request.projectId), request.freeze,
+    ))
   }
 
   private async map<T>(operation: () => Promise<T>): Promise<T> {

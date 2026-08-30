@@ -59,6 +59,8 @@ export interface ResearchStudioViewInjected {
   evaluateEvidenceReady: (request: { readonly projectId: string }) => Promise<ResearchStudioRemoteResult<ResearchStudioSnapshot>>
   savePaperCard: (request: { readonly projectId: string; readonly card: import('@deepseek-ai/dsh-research-studio/types').PaperCard }) => Promise<ResearchStudioRemoteResult<ResearchStudioSnapshot>>
   saveEvidenceCard: (request: { readonly projectId: string; readonly card: import('@deepseek-ai/dsh-research-studio/types').EvidenceCard }) => Promise<ResearchStudioRemoteResult<ResearchStudioSnapshot>>
+  saveBaselineCard: (request: { readonly projectId: string; readonly card: import('@deepseek-ai/dsh-research-studio/types').BaselineCard }) => Promise<ResearchStudioRemoteResult<ResearchStudioSnapshot>>
+  freezeBaseline: (request: { readonly projectId: string; readonly freeze: import('@deepseek-ai/dsh-research-studio/types').BaselineFreeze }) => Promise<ResearchStudioRemoteResult<ResearchStudioSnapshot>>
 }
 
 /** Full component props assembled by the conversation view renderer. */
@@ -87,7 +89,8 @@ const LIST_FIELDS = ['constraints', 'unknowns'] as const
 /** Render project operations, Research Brief authoring, Gate state, and unlocked stages. */
 export function ResearchStudioView({
   snapshot, createProject, selectProject, renameProject, archiveProject, updateBrief,
-  evaluateBriefReady, suggestBriefTutor, evaluateEvidenceReady, savePaperCard, saveEvidenceCard, t,
+  evaluateBriefReady, suggestBriefTutor, evaluateEvidenceReady, savePaperCard, saveEvidenceCard,
+  saveBaselineCard, freezeBaseline, t,
 }: ResearchStudioViewProps): ReactNode {
   const [request, setRequest] = useState(0)
   const [state, setState] = useState<ViewState>({ status: 'loading' })
@@ -101,6 +104,12 @@ export function ResearchStudioView({
   const [paperUrl, setPaperUrl] = useState('')
   const [evidenceStatement, setEvidenceStatement] = useState('')
   const [evidenceTarget, setEvidenceTarget] = useState<'brief.problemDomain' | 'brief.constraints' | 'baseline.candidate'>('brief.problemDomain')
+  const [baselineTitle, setBaselineTitle] = useState('')
+  const [baselineRepositoryUrl, setBaselineRepositoryUrl] = useState('')
+  const [baselineCommit, setBaselineCommit] = useState('')
+  const [baselineLicense, setBaselineLicense] = useState('')
+  const [baselineTask, setBaselineTask] = useState('')
+  const [baselineDatasetSplit, setBaselineDatasetSplit] = useState('')
 
   useEffect(() => {
     let current = true
@@ -200,6 +209,11 @@ export function ResearchStudioView({
             <section className={css.statusPanel}><h3>{t('papers')}</h3>{data.evidence.papers.length === 0 ? <p>{t('noEvidence')}</p> : <ul>{data.evidence.papers.map(paper => <li key={paper.id}>{paper.title} · {paper.verification}</li>)}</ul>}<h3>{t('evidenceCards')}</h3>{data.evidence.cards.length === 0 ? <p>{t('noEvidence')}</p> : <ul>{data.evidence.cards.map(card => <li key={card.id}>{card.statement} · {card.supports.join(', ')}</li>)}</ul>}</section>
             <section className={css.statusPanel}><h3>{t('addPaper')}</h3><form onSubmit={(event) => { event.preventDefault(); if (project === null || paperTitle.trim() === '' || paperUrl.trim() === '') return; const id = `paper-${paperTitle.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`; void invoke(() => savePaperCard({ projectId: String(project.id), card: { id, title: paperTitle, authors: [], identifiers: { url: paperUrl }, sourceKind: 'paper', provenance: { url: paperUrl, locator: 'manual entry' }, verification: 'unverified' } })) }}><label>{t('paperTitle')}<input value={paperTitle} onChange={event => { setPaperTitle(event.target.value) }} /></label><label>{t('sourceUrl')}<input value={paperUrl} onChange={event => { setPaperUrl(event.target.value) }} /></label><button type="submit" disabled={pending || paperTitle.trim() === '' || paperUrl.trim() === ''}>{t('savePaper')}</button></form>
             <h3>{t('addEvidence')}</h3><form onSubmit={(event) => { event.preventDefault(); if (project === null || data.evidence.papers[0] === undefined || evidenceStatement.trim() === '') return; void invoke(() => saveEvidenceCard({ projectId: String(project.id), card: { id: `evidence-${Date.now()}`, paperId: data.evidence.papers[0]!.id, locator: { url: data.evidence.papers[0]!.provenance.url, locator: 'manual entry' }, statement: evidenceStatement, polarity: 'context', supports: [evidenceTarget], verification: 'unverified' } })) }}><label>{t('evidenceStatement')}<textarea value={evidenceStatement} onChange={event => { setEvidenceStatement(event.target.value) }} /></label><label>{t('evidenceTarget')}<select value={evidenceTarget} onChange={event => { setEvidenceTarget(event.target.value as typeof evidenceTarget) }}><option value="brief.problemDomain">brief.problemDomain</option><option value="brief.constraints">brief.constraints</option><option value="baseline.candidate">baseline.candidate</option></select></label><button type="submit" disabled={pending || data.evidence.papers[0] === undefined || evidenceStatement.trim() === ''}>{t('saveEvidence')}</button></form></section>
+          </> : String(selected?.id) === 'research-design' ? <>
+            <span className={css.sectionLabel}>{t('stageResearchDesign')}</span><h2>{t('baseline')}</h2>
+            <section className={css.statusPanel} aria-label={t('baselineFreeze')}><h3>{t('baselineFreeze')}</h3><p>{data.baseline.gate === null ? t('baselineNotFrozen') : t(gateKey(data.baseline.gate.status))}</p>{data.baseline.freeze !== null && <p>{t('baselineFrozen')}: {data.baseline.freeze.baselineId}</p>}{data.baseline.gate?.missing.length ? <p>{t('missing')}: {data.baseline.gate.missing.join(', ')}</p> : null}</section>
+            <section className={css.statusPanel}><h3>{t('baselineCandidates')}</h3>{data.baseline.cards.length === 0 ? <p>{t('noBaselines')}</p> : <ul>{data.baseline.cards.map(card => <li key={card.id}>{card.title} · {card.reproduction} · {card.repository?.commit || t('noCommit')} <button type="button" disabled={pending || project === null} onClick={() => { if (project !== null) void invoke(() => freezeBaseline({ projectId: String(project.id), freeze: { baselineId: card.id, rationale: `Manual review of ${card.title}`, acceptedDeviationIds: [], frozenBy: 'researcher', frozenAt: new Date().toISOString() } })) }}>{data.baseline.freeze?.baselineId === card.id ? t('refreezeBaseline') : t('freezeBaseline')}</button></li>)}</ul>}</section>
+            <section className={css.statusPanel}><h3>{t('addBaseline')}</h3><form onSubmit={(event) => { event.preventDefault(); if (project === null || baselineTitle.trim() === '' || baselineRepositoryUrl.trim() === '') return; const id = `baseline-${baselineTitle.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`; void invoke(() => saveBaselineCard({ projectId: String(project.id), card: { id, title: baselineTitle, paperIds: [], repository: { url: baselineRepositoryUrl, commit: baselineCommit, license: baselineLicense }, task: baselineTask, datasetSplit: baselineDatasetSplit, reproduction: 'planned', knownDeviations: [], evidenceIds: [] } })) }}><label>{t('baselineTitle')}<input value={baselineTitle} onChange={event => { setBaselineTitle(event.target.value) }} /></label><label>{t('repositoryUrl')}<input value={baselineRepositoryUrl} onChange={event => { setBaselineRepositoryUrl(event.target.value) }} /></label><label>{t('repositoryCommit')}<input value={baselineCommit} onChange={event => { setBaselineCommit(event.target.value) }} /></label><label>{t('repositoryLicense')}<input value={baselineLicense} onChange={event => { setBaselineLicense(event.target.value) }} /></label><label>{t('baselineTask')}<input value={baselineTask} onChange={event => { setBaselineTask(event.target.value) }} /></label><label>{t('datasetSplit')}<input value={baselineDatasetSplit} onChange={event => { setBaselineDatasetSplit(event.target.value) }} /></label><button type="submit" disabled={pending || baselineTitle.trim() === '' || baselineRepositoryUrl.trim() === ''}>{t('saveBaseline')}</button></form></section>
           </> : <><span className={css.sectionLabel}>{selected === undefined ? '' : stageTitle(selected.id, selected.title, t)}</span><h2>{selected === undefined ? '' : stageTitle(selected.id, selected.title, t)}</h2><p className={css.placeholder}>{t('emptyEntities')}</p></>}
         </article>
       </section>

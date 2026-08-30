@@ -6,6 +6,7 @@ import {
   diffArtifactContent,
   EMPTY_RESEARCH_BRIEF,
   evaluateEvidenceReady,
+  evaluateBaselineFrozen,
   evaluateBriefReady,
   MVPResearchPreset,
   normalizeResearchBrief,
@@ -20,10 +21,14 @@ import type {
   ArtifactStore,
   EvidenceCard,
   EvidenceProjection,
+  BaselineCard,
+  BaselineFreeze,
+  BaselineProjection,
   EntityRegistry,
   GateEvaluationRecord,
   ResearchBriefPatch,
   PaperCard,
+  ResearchJsonValue,
   ResearchProjectRecord,
   ResearchProjectStore,
   ResearchStudioSnapshot,
@@ -41,6 +46,8 @@ const GATE_TYPE = 'gate-evaluation'
 const PAPER_TYPE = 'paper-card'
 const EVIDENCE_TYPE = 'evidence-card'
 const EVIDENCE_GATE_TYPE = 'evidence-gate-evaluation'
+const BASELINE_TYPE = 'baseline-card'
+const BASELINE_FREEZE_TYPE = 'baseline-freeze'
 const BRIEF_STAGE = StageId('research-brief')
 const EVIDENCE_STAGE = StageId('evidence')
 
@@ -93,6 +100,7 @@ export class ResearchStudioApplication {
     const brief = project === undefined ? undefined : this.latestBrief(project.id)
     const gate = project === undefined || brief === undefined ? undefined : this.latestGate(project.id, brief.id)
     const evidence = project === undefined ? emptyEvidence() : this.evidenceProjection(project.id)
+    const baseline = project === undefined ? emptyBaseline() : this.baselineProjection(project.id)
     const evidenceUnlocked = project?.currentStageId === EVIDENCE_STAGE && gate?.result.status === 'pass'
     const designUnlocked = project?.currentStageId === StageId('research-design') && evidence.gate?.status === 'pass'
     const projectedProject = project === undefined ? null : {
@@ -113,6 +121,7 @@ export class ResearchStudioApplication {
       briefHistory: project === undefined ? [] : this.briefHistory(project.id),
       gate: gate?.result ?? null,
       evidence,
+      baseline,
       unlockedStageIds: designUnlocked
         ? [BRIEF_STAGE, EVIDENCE_STAGE, StageId('research-design')]
         : evidenceUnlocked ? [BRIEF_STAGE, EVIDENCE_STAGE] : [BRIEF_STAGE],
@@ -350,6 +359,30 @@ export class ResearchStudioApplication {
     })
   }
 
+  /** Persist an immutable baseline candidate; a revision invalidates any earlier freeze. */
+  saveBaselineCard(projectId: ResearchProjectId, card: BaselineCard): Promise<ResearchStudioSnapshot> {
+    return this.mutate(async () => {
+      const project = this.requireEvidenceStage(projectId)
+      if (card.id.trim() === '' || card.title.trim() === '') throw appError('invalid-baseline-card', 'BaselineCard requires id and title')
+      await this.putEvidenceArtifact(project, BASELINE_TYPE, card.id, card)
+      return this.snapshot()
+    })
+  }
+
+  /** Record the single active, traceable freeze decision for a candidate baseline. */
+  freezeBaseline(projectId: ResearchProjectId, freeze: BaselineFreeze): Promise<ResearchStudioSnapshot> {
+    return this.mutate(async () => {
+      this.requireEvidenceStage(projectId)
+      const projection = this.baselineProjection(projectId)
+      const baseline = projection.cards.find(card => card.id === freeze.baselineId)
+      const result = evaluateBaselineFrozen(baseline, freeze)
+      if (result.status !== 'pass') throw appError('baseline-freeze-rejected', 'Baseline cannot be frozen until its reproducibility context is complete', { missing: result.missing })
+      const now = this.now()
+      await this.options.artifacts.put({ id: ArtifactId(`baseline-freeze-${this.id()}`), projectId, type: BASELINE_FREEZE_TYPE, version: '1.0.0', origin: 'user', content: { freeze: freeze as unknown as ResearchJsonValue }, lifecycle: 'accepted', revision: 1, createdAt: now, updatedAt: now })
+      return this.snapshot()
+    })
+  }
+
   /**
    * Compare two revisions from the same Brief lineage.
    * @param beforeId - earlier revision id.
@@ -420,7 +453,32 @@ export class ResearchStudioApplication {
     }
   }
 
-  private async putEvidenceArtifact<T extends PaperCard | EvidenceCard>(
+  private baselineProjection(projectId: ResearchProjectId): BaselineProjection {
+    const artifacts = this.options.artifacts.list(projectId)
+    const byCard = new Map<string, ArtifactRecord>()
+    for (const artifact of artifacts.filter(item => item.type === BASELINE_TYPE)) {
+      const card = artifact.content.card as { id?: unknown } | undefined
+      if (typeof card?.id !== 'string') continue
+      const prior = byCard.get(card.id)
+      if (prior === undefined || isNewerRevision(artifact, prior)) byCard.set(card.id, artifact)
+    }
+    const cards = [...byCard.values()].map(item => item.content.card as unknown as BaselineCard)
+    const freezeArtifact = artifacts.filter(item => item.type === BASELINE_FREEZE_TYPE)
+      .sort((left, right) => left.updatedAt.localeCompare(right.updatedAt)).at(-1)
+    const freeze = freezeArtifact?.content.freeze as unknown as BaselineFreeze | undefined
+    const selectedArtifact = freeze === undefined ? undefined : byCard.get(freeze.baselineId)
+    // A candidate revision is a material change: the decision record remains auditable,
+    // but it is no longer the active freeze until re-evaluated and saved again.
+    const active = freeze !== undefined && selectedArtifact !== undefined && freezeArtifact !== undefined
+      && selectedArtifact.updatedAt <= freezeArtifact.updatedAt
+    return {
+      cards,
+      freeze: active ? freeze : null,
+      gate: active ? evaluateBaselineFrozen(selectedArtifact.content.card as unknown as BaselineCard, freeze) : null,
+    }
+  }
+
+  private async putEvidenceArtifact<T extends PaperCard | EvidenceCard | BaselineCard>(
     project: ResearchProjectRecord, type: string, cardId: string, card: T,
   ): Promise<void> {
     const previous = this.options.artifacts.list(project.id).filter(item => item.type === type && (item.content.card as { id?: unknown })?.id === cardId)
@@ -428,7 +486,7 @@ export class ResearchStudioApplication {
     const now = this.now()
     await this.options.artifacts.put({
       id: ArtifactId(`${type}-${this.id()}`), projectId: project.id, type, version: '1.0.0', origin: 'user',
-      content: { card: card as unknown as import('../domain/types.ts').ResearchJsonValue },
+      content: { card: card as unknown as ResearchJsonValue },
       ...(previous === undefined ? {} : { parentId: previous.id }), revision: (previous?.revision ?? 0) + 1,
       lifecycle: 'candidate', createdAt: now, updatedAt: now,
     })
@@ -497,6 +555,15 @@ function requireText(value: string, field: string): string {
 
 function emptyEvidence(): EvidenceProjection {
   return { papers: [], cards: [], gate: null }
+}
+
+function emptyBaseline(): BaselineProjection { return { cards: [], freeze: null, gate: null } }
+
+function isNewerRevision(candidate: ArtifactRecord, prior: ArtifactRecord): boolean {
+  return (candidate.revision ?? 0) > (prior.revision ?? 0)
+    || ((candidate.revision ?? 0) === (prior.revision ?? 0)
+      && (candidate.updatedAt > prior.updatedAt
+        || (candidate.updatedAt === prior.updatedAt && String(candidate.id) > String(prior.id))))
 }
 
 function appError(code: string, message: string, details: Readonly<Record<string, unknown>> = {}) {

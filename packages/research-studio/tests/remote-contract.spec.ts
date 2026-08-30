@@ -8,6 +8,7 @@ describe('Research Studio external Remote contract', () => {
       'snapshot', 'createProject', 'selectProject', 'renameProject', 'archiveProject',
       'updateBrief', 'evaluateBriefReady', 'suggestBriefTutor', 'savePaperCard',
       'saveEvidenceCard', 'evaluateEvidenceReady',
+      'saveBaselineCard', 'freezeBaseline',
     ])
     for (const descriptor of remote.descriptors) {
       expect(descriptor.result.mode).toBe('strict')

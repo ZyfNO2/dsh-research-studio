@@ -131,6 +131,32 @@ describe('ResearchStudioApplication', () => {
     expect(revised.evidence.papers).toHaveLength(1)
     expect(revised.evidence.papers[0]?.title).toBe('Primary source revised')
   })
+
+  it('freezes a complete baseline and invalidates that decision on a candidate revision', async () => {
+    const fixture = createFixture()
+    const created = await fixture.application.createProject('Baseline study', MVPResearchPreset.id)
+    const projectId = created.project!.id
+    const saved = await fixture.application.updateBrief(projectId, null, completeBrief)
+    await fixture.application.evaluateBriefReady(projectId, saved.brief!.artifact.id)
+
+    const baseline = {
+      id: 'baseline-primary', title: 'Documented primary baseline', paperIds: [],
+      repository: { url: 'https://example.test/baseline', commit: 'abc123', license: 'Apache-2.0' },
+      task: 'Benchmark retrieval', datasetSplit: 'public validation split', reproduction: 'planned' as const,
+      knownDeviations: [], evidenceIds: [],
+    }
+    await fixture.application.saveBaselineCard(projectId, baseline)
+    const frozen = await fixture.application.freezeBaseline(projectId, {
+      baselineId: baseline.id, rationale: 'Reference configuration is complete', acceptedDeviationIds: [],
+      frozenBy: 'reviewer', frozenAt: '2026-08-30T00:00:00.000Z',
+    })
+    expect(frozen.baseline).toMatchObject({ freeze: { baselineId: baseline.id }, gate: { status: 'pass' } })
+
+    const revised = await fixture.application.saveBaselineCard(projectId, { ...baseline, title: 'Revised primary baseline' })
+    expect(revised.baseline.freeze).toBeNull()
+    expect(revised.baseline.gate).toBeNull()
+    expect(revised.baseline.cards).toMatchObject([{ id: baseline.id, title: 'Revised primary baseline' }])
+  })
 })
 
 function createFixture() {
