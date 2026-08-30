@@ -5,14 +5,14 @@
 - **Repository Model**:
   - **Product Repository** (`F:\RStudio\dsh-research-studio`): Authoritative source of Research Studio plugin suite code. All commits, pull requests, and feature development happen exclusively here.
   - **DSH Integration Target** (`F:\RStudio\deepseek-harness`): External host and test harness environment used for plugin mounting, integration testing, and browser E2E. It is **NOT** part of this repository; Research Studio development must never commit unrelated DSH changes.
-- **Standalone Repository Baseline**: `2d02bef7264996c4a56df4d7553d310f7d178cc7`
+- **Standalone Repository Baseline**: `fad078d` (`build(research-studio): close companion DSH development loop`)
 - **Default Branch**: `main` (Development Integration Branch: `main`; no `master` branch is maintained).
 - **Remote Repository**: `https://github.com/ZyfNO2/dsh-research-studio.git`
 - **Host Compatibility Baseline**:
   - Tested Upstream DSH Baseline: `cd5ef8148158c3a752a658978873241fdf8e2bbc` (DSH `0.1.2-alpha.1`)
   - Node Version: `^22.19 || >=24`
-  - Package Manager: `pnpm ^10.4.1`
-- **Current Product State**: Phase 2 — Research Brief Usable Vertical Slice is **COMPLETE**. The standalone plugin repository is decoupled, green, and halted at the **Phase 3 Mandatory Planning Gate**.
+  - Package Manager: `pnpm 11.22.0`
+- **Current Product State**: P3-0 compatibility/build closure is **COMPLETE**. Product packages remain standalone; the sibling DSH checkout resolves private workspace dependencies during development.
 
 ---
 
@@ -25,17 +25,18 @@ The overarching product specification is governed by `docs/Academic_Tailor_Resea
 | **Phase 0** | RPD / Prototype / Architecture | ✅ COMPLETE | Product requirements, standalone HTML prototype, DSH extension point mapping. |
 | **Phase 1** | Plugin Architecture & Executable Skeleton | ✅ COMPLETE | Domain contracts, storage adapter, Host service, snapshot Remote, Web UI view, profile bundle. |
 | **Phase 2** | **Research Brief Usable Vertical Slice** | ✅ **COMPLETE** | **Project lifecycle, Application layer, versioned Artifacts, Gate engine, Stage-0 Skill bridge, Tutor dialog.** |
-| **Phase 3** | **Evidence & Research Design Core** | 🛑 **MANDATORY STOP (PLANNING WINDOW)** | **Literature matrix, Evidence cards, Baseline freeze, Module compatibility, Claim formulation.** |
+| **Phase 3** | **Evidence & Research Design Core** | 🟡 **P3-0 COMPLETE; P3-A NEXT** | **Companion build closure and external Remote bridge complete; Evidence cards follow.** |
 | **Phase 4** | BuildSpec, Coding Agent & Experiment Loop | ⚪ PLANNED | Repo inspection, BuildSpec blueprints, DSH coding agent dispatch, Experiment ledger, Backflow. |
 | **Phase 5** | Paper Generation, Claim Trace & Research Audit | ⚪ PLANNED | Claim-to-Evidence trace, multi-perspective reviewer simulation, paper drafting, scientific audit. |
 | **Phase 6** | Autonomous Research, Tree Search & Multi-Agent | ⚪ PLANNED | Multi-branch exploration, autonomous research teams, persistent memory, custom presets. |
 
 ---
 
-## 3. Current Checkpoint: Phase 3 Mandatory Stop & Review
+## 3. Current Checkpoint: P3-0 Compatibility & Build Closure
 
-The first **Mandatory Stop Condition** is currently active:
-> **All Phase 2 exit criteria are verified complete.** Coding Agents and collaborators MUST NOT start Phase 3 coding automatically. The Project Owner is currently reviewing Phase 2 interactive behavior and formulating the Phase 3 Research Methodology & Design UX specification.
+The Phase 3 specification is [docs/Phase_3_Evidence_and_Research_Design_Spec.md](docs/Phase_3_Evidence_and_Research_Design_Spec.md). P3-0 is complete: `pnpm run build`, `pnpm run typecheck`, and `pnpm run test` pass in this repository with the companion checkout present.
+
+The explicit `src/integration/remote-contract.ts` bridge is intentional. DSH's Typert generator currently only recognizes protocol declarations from its own workspace, so an external companion package cannot generate its Remote artifacts. The bridge uses public `TypertRemoteContribution` contracts and the documented Host SRC dispatch path; do not copy or modify DSH Core to evade this boundary.
 
 ---
 
@@ -109,7 +110,7 @@ The test and verification suites are split into two distinct tiers:
 Must be run and pass 100% on every pull request to `dsh-research-studio`:
 - **Build**: `pnpm run build` passes for all 3 packages.
 - **Typecheck**: `pnpm run typecheck` (`tsc -b`) reports 0 errors.
-- **Unit & Component Tests**: `pnpm run test` (Vitest: 5 test files, 11 tests in `domain.spec.ts`, `application.spec.ts`, `service.spec.ts`, `view.client.spec.tsx`, and `bundle.spec.ts`).
+- **Unit & Component Tests**: `pnpm run test` (Vitest: 6 test files, 13 tests, including `remote-contract.spec.ts`).
 
 ### B. DSH Host Integration Tests (In `F:\RStudio\deepseek-harness`)
 Used for end-to-end and host compatibility verification:
@@ -120,13 +121,13 @@ Used for end-to-end and host compatibility verification:
 
 ---
 
-## 8. Phase 3 Planning Preview (Next Development Window)
+## 8. Phase 3 Execution Preview (Next Development Window)
 
 When the Project Owner completes review and authorizes Phase 3, the active workstreams will be:
 
 | ID | Workstream | Status | Dependencies | Scope |
 |---|---|---|---|---|
-| **P3-01** | Evidence Domain & Storage | ⚪ PLANNED | Phase 2 | PaperCard, EvidenceCard, RepoReference entities & storage specs. |
+| **P3-01** | Evidence Domain & Storage | 🟡 NEXT | P3-0 | PaperCard, EvidenceCard, RepoReference entities & storage specs. |
 | **P3-02** | Literature & Evidence UI | ⚪ PLANNED | P3-01 | Evidence matrix view, paper drawer, bibtex/citation ingestion. |
 | **P3-03** | `EVIDENCE_READY` Gate | ⚪ PLANNED | P3-01, P3-02 | Deterministic evaluation of baseline candidates and evidence provenance. |
 | **P3-04** | Baseline Studio & Freeze | ⚪ PLANNED | P3-03 | Selecting and locking single reproducible baseline codebase & metrics. |
