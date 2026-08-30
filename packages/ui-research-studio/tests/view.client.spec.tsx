@@ -49,6 +49,10 @@ function props(overrides: Partial<ResearchStudioViewInjected> = {}): ResearchStu
     saveEvidenceCard: vi.fn(() => success(snapshot)),
     saveBaselineCard: vi.fn(() => success(snapshot)),
     freezeBaseline: vi.fn(() => success(snapshot)),
+    saveModuleCard: vi.fn(() => success(snapshot)),
+    saveCompatibility: vi.fn(() => success(snapshot)),
+    saveClaimDraft: vi.fn(() => success(snapshot)),
+    freezeDesign: vi.fn(() => success(snapshot)),
     ...overrides,
   }
   return {

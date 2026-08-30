@@ -10,10 +10,14 @@ import type {
   EvaluateResearchBriefRequest,
   EvaluateEvidenceReadyRequest,
   FreezeBaselineRequest,
+  FreezeDesignRequest,
   RenameResearchProjectRequest,
   ResearchStudioSnapshot,
   SaveEvidenceCardRequest,
   SaveBaselineCardRequest,
+  SaveClaimDraftRequest,
+  SaveCompatibilityRequest,
+  SaveModuleCardRequest,
   SavePaperCardRequest,
   SelectResearchProjectRequest,
   SuggestResearchBriefTutorRequest,
@@ -168,6 +172,30 @@ export class ResearchStudioController extends TypertRemoteService {
     return this.map(() => this.ctx.researchStudio.application.freezeBaseline(
       ResearchProjectId(request.projectId), request.freeze,
     ))
+  }
+
+  /** Save one sourced Research Design module candidate. */
+  @Remote
+  saveModuleCard(request: SaveModuleCardRequest): Promise<ResearchStudioSnapshot> {
+    return this.map(() => this.ctx.researchStudio.application.saveModuleCard(ResearchProjectId(request.projectId), request.card))
+  }
+
+  /** Save one explicit compatibility boundary assessment. */
+  @Remote
+  saveCompatibility(request: SaveCompatibilityRequest): Promise<ResearchStudioSnapshot> {
+    return this.map(() => this.ctx.researchStudio.application.saveCompatibility(ResearchProjectId(request.projectId), request.record))
+  }
+
+  /** Save one falsifiable design Claim draft. */
+  @Remote
+  saveClaimDraft(request: SaveClaimDraftRequest): Promise<ResearchStudioSnapshot> {
+    return this.map(() => this.ctx.researchStudio.application.saveClaimDraft(ResearchProjectId(request.projectId), request.claim))
+  }
+
+  /** Freeze the complete Research Design only after deterministic validation. */
+  @Remote
+  freezeDesign(request: FreezeDesignRequest): Promise<ResearchStudioSnapshot> {
+    return this.map(() => this.ctx.researchStudio.application.freezeDesign(ResearchProjectId(request.projectId), request.freeze))
   }
 
   private async map<T>(operation: () => Promise<T>): Promise<T> {

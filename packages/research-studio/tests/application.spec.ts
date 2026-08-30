@@ -14,6 +14,7 @@ import type {
   ArtifactStore,
   ResearchBrief,
   ResearchProjectRecord,
+  ResearchProjectId,
   ResearchProjectStore,
 } from '../src/index.ts'
 
@@ -136,8 +137,7 @@ describe('ResearchStudioApplication', () => {
     const fixture = createFixture()
     const created = await fixture.application.createProject('Baseline study', MVPResearchPreset.id)
     const projectId = created.project!.id
-    const saved = await fixture.application.updateBrief(projectId, null, completeBrief)
-    await fixture.application.evaluateBriefReady(projectId, saved.brief!.artifact.id)
+    await unlockDesign(fixture.application, projectId)
 
     const baseline = {
       id: 'baseline-primary', title: 'Documented primary baseline', paperIds: [],
@@ -157,7 +157,40 @@ describe('ResearchStudioApplication', () => {
     expect(revised.baseline.gate).toBeNull()
     expect(revised.baseline.cards).toMatchObject([{ id: baseline.id, title: 'Revised primary baseline' }])
   })
+
+  it('freezes an auditable design and relocks Build Spec when a Module revision changes it', async () => {
+    const fixture = createFixture()
+    const created = await fixture.application.createProject('Design study', MVPResearchPreset.id)
+    const projectId = created.project!.id
+    await unlockDesign(fixture.application, projectId)
+    const baseline = { id: 'baseline-design', title: 'Reference baseline', paperIds: [], repository: { url: 'https://example.test/base', commit: 'abc123', license: 'Apache-2.0' }, task: 'Retrieval', datasetSplit: 'public validation', reproduction: 'planned' as const, knownDeviations: [], evidenceIds: [] }
+    await fixture.application.saveBaselineCard(projectId, baseline)
+    await fixture.application.freezeBaseline(projectId, { baselineId: baseline.id, rationale: 'Complete context', acceptedDeviationIds: [], frozenBy: 'reviewer', frozenAt: '2026-08-30T00:00:00.000Z' })
+    const contract = { semanticUnit: 'token embedding', shape: '[B,T,D]', dtype: 'float32', scale: 'normalized', ordering: 'batch,time,channel', maskPolicy: 'padding preserved', gradientPolicy: 'adapter only' }
+    const module = { id: 'module-design', source: { paperIds: ['paper-primary'], license: 'Apache-2.0' }, originalRole: 'adapter', proposedRole: 'retrieval adapter', addressesGap: 'brief.problemDomain', input: contract, output: contract, optimization: { objective: 'ranking loss', schedule: 'fixed' }, predictedEffect: 'Predicted recall change under the stated condition.', competingExplanation: 'The split composition may explain any observed change.', failureModes: ['instability'], evidenceIds: ['evidence-brief.problemDomain'] }
+    await fixture.application.saveModuleCard(projectId, module)
+    await fixture.application.saveCompatibility(projectId, { id: 'edge-design', producer: `baseline:${baseline.id}`, consumer: `module:${module.id}`, contract, status: 'risk', requiredChecks: ['mask propagation'] })
+    await fixture.application.saveClaimDraft(projectId, { id: 'claim-design', statement: 'Under the stated condition, the module is predicted to change recall within the latency guardrail.', condition: 'Public validation', mechanism: 'The adapter reweights features.', intervention: 'Insert after the encoder.', predictedMetric: { name: 'recall@10', direction: 'increase' as const, target: 'pre-registered comparison' }, guardrails: ['p95 latency threshold'], falsifier: 'The registered comparison does not meet the metric target.', evidenceIds: ['evidence-brief.problemDomain'], status: 'proposed' as const })
+    const frozen = await fixture.application.freezeDesign(projectId, { rationale: 'Contracts reviewed', frozenBy: 'reviewer', frozenAt: '2026-08-30T00:02:00.000Z' })
+    expect(frozen.design).toMatchObject({ gate: { status: 'pass' }, freeze: { frozenBy: 'reviewer' } })
+    expect(frozen.unlockedStageIds).toContain('research-design')
+
+    const revised = await fixture.application.saveModuleCard(projectId, { ...module, proposedRole: 'revised retrieval adapter' })
+    expect(revised.design.freeze).toBeNull()
+    expect(revised.design.gate).toBeNull()
+  })
 })
+
+async function unlockDesign(application: ResearchStudioApplication, projectId: ResearchProjectId) {
+  const saved = await application.updateBrief(projectId, null, completeBrief)
+  await application.evaluateBriefReady(projectId, saved.brief!.artifact.id)
+  const paper = { id: 'paper-primary', title: 'Primary source', authors: ['Author'], identifiers: {}, sourceKind: 'paper' as const, provenance: { url: 'https://example.test/paper', locator: 'p. 1' }, verification: 'verified' as const }
+  await application.savePaperCard(projectId, paper)
+  for (const target of ['brief.problemDomain', 'brief.constraints', 'baseline.candidate'] as const) {
+    await application.saveEvidenceCard(projectId, { id: `evidence-${target}`, paperId: paper.id, locator: { url: paper.provenance.url, locator: 'sec. 2' }, statement: `Primary-source fact for ${target}`, polarity: 'context', supports: [target], verification: 'verified' })
+  }
+  await application.evaluateEvidenceReady(projectId)
+}
 
 function createFixture() {
   const projects = new MemoryProjectStore()

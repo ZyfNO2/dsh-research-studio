@@ -7,6 +7,7 @@ import {
   EMPTY_RESEARCH_BRIEF,
   evaluateEvidenceReady,
   evaluateBaselineFrozen,
+  evaluateDesignFrozen,
   evaluateBriefReady,
   MVPResearchPreset,
   normalizeResearchBrief,
@@ -24,10 +25,15 @@ import type {
   BaselineCard,
   BaselineFreeze,
   BaselineProjection,
+  ClaimDraft,
+  CompatibilityRecord,
+  DesignFreeze,
+  DesignProjection,
   EntityRegistry,
   GateEvaluationRecord,
   ResearchBriefPatch,
   PaperCard,
+  ModuleCard,
   ResearchJsonValue,
   ResearchProjectRecord,
   ResearchProjectStore,
@@ -48,6 +54,10 @@ const EVIDENCE_TYPE = 'evidence-card'
 const EVIDENCE_GATE_TYPE = 'evidence-gate-evaluation'
 const BASELINE_TYPE = 'baseline-card'
 const BASELINE_FREEZE_TYPE = 'baseline-freeze'
+const MODULE_TYPE = 'module-card'
+const COMPATIBILITY_TYPE = 'compatibility-record'
+const CLAIM_TYPE = 'claim-draft'
+const DESIGN_FREEZE_TYPE = 'design-freeze'
 const BRIEF_STAGE = StageId('research-brief')
 const EVIDENCE_STAGE = StageId('evidence')
 
@@ -101,11 +111,13 @@ export class ResearchStudioApplication {
     const gate = project === undefined || brief === undefined ? undefined : this.latestGate(project.id, brief.id)
     const evidence = project === undefined ? emptyEvidence() : this.evidenceProjection(project.id)
     const baseline = project === undefined ? emptyBaseline() : this.baselineProjection(project.id)
-    const evidenceUnlocked = project?.currentStageId === EVIDENCE_STAGE && gate?.result.status === 'pass'
-    const designUnlocked = project?.currentStageId === StageId('research-design') && evidence.gate?.status === 'pass'
+    const design = project === undefined ? emptyDesign() : this.designProjection(project.id, baseline)
+    const evidenceUnlocked = gate?.result.status === 'pass'
+    const designUnlocked = evidenceUnlocked && evidence.gate?.status === 'pass'
+    const buildSpecUnlocked = designUnlocked && design.gate?.status === 'pass'
     const projectedProject = project === undefined ? null : {
       ...project,
-      currentStageId: evidenceUnlocked ? EVIDENCE_STAGE : BRIEF_STAGE,
+      currentStageId: project.currentStageId ?? (evidenceUnlocked ? EVIDENCE_STAGE : BRIEF_STAGE),
     }
     return {
       runtime: 'host',
@@ -122,9 +134,11 @@ export class ResearchStudioApplication {
       gate: gate?.result ?? null,
       evidence,
       baseline,
-      unlockedStageIds: designUnlocked
-        ? [BRIEF_STAGE, EVIDENCE_STAGE, StageId('research-design')]
-        : evidenceUnlocked ? [BRIEF_STAGE, EVIDENCE_STAGE] : [BRIEF_STAGE],
+      design,
+      unlockedStageIds: buildSpecUnlocked
+        ? [BRIEF_STAGE, EVIDENCE_STAGE, StageId('research-design'), StageId('build-spec')]
+        : designUnlocked ? [BRIEF_STAGE, EVIDENCE_STAGE, StageId('research-design')]
+          : evidenceUnlocked ? [BRIEF_STAGE, EVIDENCE_STAGE] : [BRIEF_STAGE],
     }
   }
 
@@ -364,7 +378,7 @@ export class ResearchStudioApplication {
     return this.mutate(async () => {
       const project = this.requireEvidenceStage(projectId)
       if (card.id.trim() === '' || card.title.trim() === '') throw appError('invalid-baseline-card', 'BaselineCard requires id and title')
-      await this.putEvidenceArtifact(project, BASELINE_TYPE, card.id, card)
+      await this.putEvidenceArtifact(project, BASELINE_TYPE, card.id, card, StageId('research-design'))
       return this.snapshot()
     })
   }
@@ -379,6 +393,56 @@ export class ResearchStudioApplication {
       if (result.status !== 'pass') throw appError('baseline-freeze-rejected', 'Baseline cannot be frozen until its reproducibility context is complete', { missing: result.missing })
       const now = this.now()
       await this.options.artifacts.put({ id: ArtifactId(`baseline-freeze-${this.id()}`), projectId, type: BASELINE_FREEZE_TYPE, version: '1.0.0', origin: 'user', content: { freeze: freeze as unknown as ResearchJsonValue }, lifecycle: 'accepted', revision: 1, createdAt: now, updatedAt: now })
+      return this.snapshot()
+    })
+  }
+
+  /** Persist one attributed Module candidate without prescribing an implementation. */
+  saveModuleCard(projectId: ResearchProjectId, card: ModuleCard): Promise<ResearchStudioSnapshot> {
+    return this.mutate(async () => {
+      const project = this.requireDesignStage(projectId)
+      if (card.id.trim() === '' || card.proposedRole.trim() === '') throw appError('invalid-module-card', 'ModuleCard requires id and proposed role')
+      await this.putDesignArtifact(project, MODULE_TYPE, card.id, card)
+      return this.snapshot()
+    })
+  }
+
+  /** Persist one explicit compatibility assessment for a design boundary. */
+  saveCompatibility(projectId: ResearchProjectId, record: CompatibilityRecord): Promise<ResearchStudioSnapshot> {
+    return this.mutate(async () => {
+      const project = this.requireDesignStage(projectId)
+      if (record.id.trim() === '') throw appError('invalid-compatibility-record', 'CompatibilityRecord requires id')
+      await this.putDesignArtifact(project, COMPATIBILITY_TYPE, record.id, record)
+      return this.snapshot()
+    })
+  }
+
+  /** Persist the current falsifiable Claim draft; it is never an experimental result. */
+  saveClaimDraft(projectId: ResearchProjectId, claim: ClaimDraft): Promise<ResearchStudioSnapshot> {
+    return this.mutate(async () => {
+      const project = this.requireDesignStage(projectId)
+      if (claim.id.trim() === '') throw appError('invalid-claim-draft', 'ClaimDraft requires id')
+      await this.putDesignArtifact(project, CLAIM_TYPE, claim.id, claim)
+      return this.snapshot()
+    })
+  }
+
+  /** Evaluate and persist a Design freeze only when the auditable graph is complete. */
+  freezeDesign(projectId: ResearchProjectId, freeze: DesignFreeze): Promise<ResearchStudioSnapshot> {
+    return this.mutate(async () => {
+      const project = this.requireDesignStage(projectId)
+      const design = this.designProjection(projectId, this.baselineProjection(projectId))
+      const result = evaluateDesignFrozen({
+        baselineFreeze: this.baselineProjection(projectId).freeze, modules: design.modules,
+        compatibilities: design.compatibilities, claim: design.claim, freeze,
+      })
+      if (result.status !== 'pass') throw appError('design-freeze-rejected', 'Research Design cannot be frozen until its contracts and claim are complete', { missing: result.missing })
+      const now = this.now()
+      await this.options.artifacts.put({
+        id: ArtifactId(`design-freeze-${this.id()}`), projectId, type: DESIGN_FREEZE_TYPE, version: '1.0.0', origin: 'user',
+        content: { freeze: freeze as unknown as ResearchJsonValue }, lifecycle: 'accepted', revision: 1, createdAt: now, updatedAt: now,
+      })
+      await this.options.projects.put({ ...project, currentStageId: StageId('build-spec'), updatedAt: now })
       return this.snapshot()
     })
   }
@@ -478,8 +542,34 @@ export class ResearchStudioApplication {
     }
   }
 
+  private designProjection(projectId: ResearchProjectId, baseline: BaselineProjection): DesignProjection {
+    const artifacts = this.options.artifacts.list(projectId)
+    const latest = <T>(type: string): T[] => {
+      const byId = new Map<string, ArtifactRecord>()
+      for (const artifact of artifacts.filter(item => item.type === type)) {
+        const value = artifact.content.card as { id?: unknown } | undefined
+        if (typeof value?.id !== 'string') continue
+        const prior = byId.get(value.id)
+        if (prior === undefined || isNewerRevision(artifact, prior)) byId.set(value.id, artifact)
+      }
+      return [...byId.values()].map(item => item.content.card as unknown as T)
+    }
+    const modules = latest<ModuleCard>(MODULE_TYPE)
+    const compatibilities = latest<CompatibilityRecord>(COMPATIBILITY_TYPE)
+    const claims = latest<ClaimDraft>(CLAIM_TYPE)
+    const claim = claims.sort((left, right) => left.id.localeCompare(right.id)).at(-1) ?? null
+    const freezeArtifact = artifacts.filter(item => item.type === DESIGN_FREEZE_TYPE).sort((left, right) => left.updatedAt.localeCompare(right.updatedAt)).at(-1)
+    const latestDesignChange = artifacts.filter(item => [MODULE_TYPE, COMPATIBILITY_TYPE, CLAIM_TYPE].includes(item.type)).sort((left, right) => left.updatedAt.localeCompare(right.updatedAt)).at(-1)
+    const latestBaselineFreeze = artifacts.filter(item => item.type === BASELINE_FREEZE_TYPE).sort((left, right) => left.updatedAt.localeCompare(right.updatedAt)).at(-1)
+    const active = freezeArtifact !== undefined && baseline.freeze !== null
+      && (latestDesignChange === undefined || latestDesignChange.updatedAt <= freezeArtifact.updatedAt)
+      && (latestBaselineFreeze === undefined || latestBaselineFreeze.updatedAt <= freezeArtifact.updatedAt)
+    const freeze = active ? freezeArtifact.content.freeze as unknown as DesignFreeze : null
+    return { modules, compatibilities, claim, freeze, gate: freeze === null ? null : evaluateDesignFrozen({ baselineFreeze: baseline.freeze, modules, compatibilities, claim, freeze }) }
+  }
+
   private async putEvidenceArtifact<T extends PaperCard | EvidenceCard | BaselineCard>(
-    project: ResearchProjectRecord, type: string, cardId: string, card: T,
+    project: ResearchProjectRecord, type: string, cardId: string, card: T, nextStage: StageId = EVIDENCE_STAGE,
   ): Promise<void> {
     const previous = this.options.artifacts.list(project.id).filter(item => item.type === type && (item.content.card as { id?: unknown })?.id === cardId)
       .sort((left, right) => (left.revision ?? 0) - (right.revision ?? 0)).at(-1)
@@ -490,13 +580,38 @@ export class ResearchStudioApplication {
       ...(previous === undefined ? {} : { parentId: previous.id }), revision: (previous?.revision ?? 0) + 1,
       lifecycle: 'candidate', createdAt: now, updatedAt: now,
     })
-    await this.options.projects.put({ ...project, currentStageId: EVIDENCE_STAGE, updatedAt: now })
+    await this.options.projects.put({ ...project, currentStageId: nextStage, updatedAt: now })
+  }
+
+  private async putDesignArtifact<T extends ModuleCard | CompatibilityRecord | ClaimDraft>(
+    project: ResearchProjectRecord, type: string, id: string, card: T,
+  ): Promise<void> {
+    const previous = this.options.artifacts.list(project.id).filter(item => item.type === type && (item.content.card as { id?: unknown })?.id === id)
+      .sort((left, right) => (left.revision ?? 0) - (right.revision ?? 0)).at(-1)
+    const now = this.now()
+    await this.options.artifacts.put({
+      id: ArtifactId(`${type}-${this.id()}`), projectId: project.id, type, version: '1.0.0', origin: 'user',
+      content: { card: card as unknown as ResearchJsonValue }, ...(previous === undefined ? {} : { parentId: previous.id }),
+      revision: (previous?.revision ?? 0) + 1, lifecycle: 'candidate', createdAt: now, updatedAt: now,
+    })
+    await this.options.projects.put({ ...project, currentStageId: StageId('research-design'), updatedAt: now })
   }
 
   private requireEvidenceStage(projectId: ResearchProjectId): ResearchProjectRecord {
     const project = this.requireActiveProject(projectId)
     if (project.currentStageId !== EVIDENCE_STAGE && project.currentStageId !== StageId('research-design')) {
       throw appError('evidence-stage-locked', 'Pass BRIEF_READY before recording Evidence')
+    }
+    return project
+  }
+
+  private requireDesignStage(projectId: ResearchProjectId): ResearchProjectRecord {
+    const project = this.requireActiveProject(projectId)
+    if (project.currentStageId !== StageId('research-design') && project.currentStageId !== StageId('build-spec')) {
+      throw appError('research-design-stage-locked', 'Pass EVIDENCE_READY before recording Research Design artifacts')
+    }
+    if (this.evidenceProjection(projectId).gate?.status !== 'pass') {
+      throw appError('research-design-evidence-required', 'Research Design requires a current passing EVIDENCE_READY gate')
     }
     return project
   }
@@ -558,6 +673,7 @@ function emptyEvidence(): EvidenceProjection {
 }
 
 function emptyBaseline(): BaselineProjection { return { cards: [], freeze: null, gate: null } }
+function emptyDesign(): DesignProjection { return { modules: [], compatibilities: [], claim: null, freeze: null, gate: null } }
 
 function isNewerRevision(candidate: ArtifactRecord, prior: ArtifactRecord): boolean {
   return (candidate.revision ?? 0) > (prior.revision ?? 0)

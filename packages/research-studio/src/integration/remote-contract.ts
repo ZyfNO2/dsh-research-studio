@@ -20,6 +20,7 @@ import type {
   EvaluateResearchBriefRequest,
   EvaluateEvidenceReadyRequest,
   FreezeBaselineRequest,
+  FreezeDesignRequest,
   RenameResearchProjectRequest,
   ResearchJsonValue,
   ResearchStudioSnapshot,
@@ -27,6 +28,9 @@ import type {
   SuggestResearchBriefTutorRequest,
   SaveEvidenceCardRequest,
   SaveBaselineCardRequest,
+  SaveClaimDraftRequest,
+  SaveCompatibilityRequest,
+  SaveModuleCardRequest,
   SavePaperCardRequest,
   TutorSuggestion,
   UpdateResearchBriefRequest,
@@ -47,6 +51,10 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     evaluateEvidenceReady: (request: EvaluateEvidenceReadyRequest) => Promise<RemoteResult<ResearchStudioSnapshot>>
     saveBaselineCard: (request: SaveBaselineCardRequest) => Promise<RemoteResult<ResearchStudioSnapshot>>
     freezeBaseline: (request: FreezeBaselineRequest) => Promise<RemoteResult<ResearchStudioSnapshot>>
+    saveModuleCard: (request: SaveModuleCardRequest) => Promise<RemoteResult<ResearchStudioSnapshot>>
+    saveCompatibility: (request: SaveCompatibilityRequest) => Promise<RemoteResult<ResearchStudioSnapshot>>
+    saveClaimDraft: (request: SaveClaimDraftRequest) => Promise<RemoteResult<ResearchStudioSnapshot>>
+    freezeDesign: (request: FreezeDesignRequest) => Promise<RemoteResult<ResearchStudioSnapshot>>
   }
   interface TypertRemoteMap {
     'researchStudio/snapshot': () => Promise<RemoteResult<ResearchStudioSnapshot>>
@@ -62,6 +70,10 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     'researchStudio/evaluateEvidenceReady': (request: EvaluateEvidenceReadyRequest) => Promise<RemoteResult<ResearchStudioSnapshot>>
     'researchStudio/saveBaselineCard': (request: SaveBaselineCardRequest) => Promise<RemoteResult<ResearchStudioSnapshot>>
     'researchStudio/freezeBaseline': (request: FreezeBaselineRequest) => Promise<RemoteResult<ResearchStudioSnapshot>>
+    'researchStudio/saveModuleCard': (request: SaveModuleCardRequest) => Promise<RemoteResult<ResearchStudioSnapshot>>
+    'researchStudio/saveCompatibility': (request: SaveCompatibilityRequest) => Promise<RemoteResult<ResearchStudioSnapshot>>
+    'researchStudio/saveClaimDraft': (request: SaveClaimDraftRequest) => Promise<RemoteResult<ResearchStudioSnapshot>>
+    'researchStudio/freezeDesign': (request: FreezeDesignRequest) => Promise<RemoteResult<ResearchStudioSnapshot>>
   }
   interface TypertRemoteNamespaceMap {
     researchStudio: TypertRemoteNamespace$726573656172636853747564696f
@@ -106,6 +118,11 @@ const baselineFreeze: z.ZodType = z.object({
   baselineId: stringId, rationale: z.string(), acceptedDeviationIds: z.array(stringId),
   frozenBy: z.string(), frozenAt: z.string(),
 })
+const interfaceContract: z.ZodType = z.object({ semanticUnit: z.string(), shape: z.string(), dtype: z.string(), scale: z.string(), ordering: z.string(), maskPolicy: z.string(), gradientPolicy: z.string() })
+const moduleCard: z.ZodType = z.object({ id: stringId, source: z.object({ paperIds: z.array(stringId), repository: z.string().optional(), license: z.string().optional() }), originalRole: z.string(), proposedRole: z.string(), addressesGap: z.string(), input: interfaceContract, output: interfaceContract, optimization: z.object({ objective: z.string(), schedule: z.string() }), computeCost: z.string().optional(), predictedEffect: z.string(), competingExplanation: z.string(), failureModes: z.array(z.string()), evidenceIds: z.array(stringId) })
+const compatibilityRecord: z.ZodType = z.object({ id: stringId, producer: z.string(), consumer: z.string(), contract: interfaceContract, adapterRationale: z.string().optional(), status: z.enum(['unknown', 'pass', 'risk', 'fail']), requiredChecks: z.array(z.string()) })
+const claimDraft: z.ZodType = z.object({ id: stringId, statement: z.string(), condition: z.string(), mechanism: z.string(), intervention: z.string(), predictedMetric: z.object({ name: z.string(), direction: z.enum(['increase', 'decrease', 'maintain']), target: z.string() }), guardrails: z.array(z.string()), falsifier: z.string(), evidenceIds: z.array(stringId), status: z.enum(['proposed', 'blocked', 'rejected']) })
+const designFreeze: z.ZodType = z.object({ rationale: z.string(), frozenBy: z.string(), frozenAt: z.string() })
 const snapshot = z.object({
   runtime: z.literal('host'), projects: z.array(project), project: project.nullable(),
   preset: z.object({ id: stringId, version: z.string(), title: z.string(), stageIds: z.array(stringId) }),
@@ -129,6 +146,7 @@ const snapshot = z.object({
     cards: z.array(baselineCard), freeze: baselineFreeze.nullable(),
     gate: gate.nullable(),
   }),
+  design: z.object({ modules: z.array(moduleCard), compatibilities: z.array(compatibilityRecord), claim: claimDraft.nullable(), freeze: designFreeze.nullable(), gate: gate.nullable() }),
   unlockedStageIds: z.array(stringId),
 }) as unknown as z.ZodType<ResearchStudioSnapshot>
 const tutorSuggestion = z.object({
@@ -178,6 +196,10 @@ export const TYPERT_REMOTE: TypertRemoteContribution = {
     descriptor('evaluateEvidenceReady', snapshotResult, { typeSymbol: '@deepseek-ai/dsh-research-studio/types#EvaluateEvidenceReadyRequest', schema: z.object({ projectId: stringId }) }),
     descriptor('saveBaselineCard', snapshotResult, { typeSymbol: '@deepseek-ai/dsh-research-studio/types#SaveBaselineCardRequest', schema: z.object({ projectId: stringId, card: baselineCard }) }),
     descriptor('freezeBaseline', snapshotResult, { typeSymbol: '@deepseek-ai/dsh-research-studio/types#FreezeBaselineRequest', schema: z.object({ projectId: stringId, freeze: baselineFreeze }) }),
+    descriptor('saveModuleCard', snapshotResult, { typeSymbol: '@deepseek-ai/dsh-research-studio/types#SaveModuleCardRequest', schema: z.object({ projectId: stringId, card: moduleCard }) }),
+    descriptor('saveCompatibility', snapshotResult, { typeSymbol: '@deepseek-ai/dsh-research-studio/types#SaveCompatibilityRequest', schema: z.object({ projectId: stringId, record: compatibilityRecord }) }),
+    descriptor('saveClaimDraft', snapshotResult, { typeSymbol: '@deepseek-ai/dsh-research-studio/types#SaveClaimDraftRequest', schema: z.object({ projectId: stringId, claim: claimDraft }) }),
+    descriptor('freezeDesign', snapshotResult, { typeSymbol: '@deepseek-ai/dsh-research-studio/types#FreezeDesignRequest', schema: z.object({ projectId: stringId, freeze: designFreeze }) }),
   ],
 }
 

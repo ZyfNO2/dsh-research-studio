@@ -152,6 +152,65 @@ export interface BaselineFreeze {
   readonly frozenBy: string
   readonly frozenAt: string
 }
+/** Complete boundary semantics required before a data-flow edge can be assessed. */
+export interface InterfaceContract {
+  readonly semanticUnit: string
+  readonly shape: string
+  readonly dtype: string
+  readonly scale: string
+  readonly ordering: string
+  readonly maskPolicy: string
+  readonly gradientPolicy: string
+}
+/** A source-attributed candidate module; it is not an implementation instruction. */
+export interface ModuleCard {
+  readonly id: string
+  readonly source: { readonly paperIds: readonly string[]; readonly repository?: string; readonly license?: string }
+  readonly originalRole: string
+  readonly proposedRole: string
+  readonly addressesGap: string
+  readonly input: InterfaceContract
+  readonly output: InterfaceContract
+  readonly optimization: { readonly objective: string; readonly schedule: string }
+  readonly computeCost?: string
+  readonly predictedEffect: string
+  readonly competingExplanation: string
+  readonly failureModes: readonly string[]
+  readonly evidenceIds: readonly string[]
+}
+/** One explicit producer-to-consumer boundary, never inferred merely from matching shapes. */
+export interface CompatibilityRecord {
+  readonly id: string
+  readonly producer: string
+  readonly consumer: string
+  readonly contract: InterfaceContract
+  readonly adapterRationale?: string
+  readonly status: 'unknown' | 'pass' | 'risk' | 'fail'
+  readonly requiredChecks: readonly string[]
+}
+/** A falsifiable design hypothesis, deliberately separate from an experimental result. */
+export interface ClaimDraft {
+  readonly id: string
+  readonly statement: string
+  readonly condition: string
+  readonly mechanism: string
+  readonly intervention: string
+  readonly predictedMetric: { readonly name: string; readonly direction: 'increase' | 'decrease' | 'maintain'; readonly target: string }
+  readonly guardrails: readonly string[]
+  readonly falsifier: string
+  readonly evidenceIds: readonly string[]
+  readonly status: 'proposed' | 'blocked' | 'rejected'
+}
+/** Immutable decision record that accepts the current auditable design state. */
+export interface DesignFreeze { readonly rationale: string; readonly frozenBy: string; readonly frozenAt: string }
+/** Host projection for the Research Design slice. */
+export interface DesignProjection {
+  readonly modules: readonly ModuleCard[]
+  readonly compatibilities: readonly CompatibilityRecord[]
+  readonly claim: ClaimDraft | null
+  readonly freeze: DesignFreeze | null
+  readonly gate: GateResult | null
+}
 
 /** JSON-safe value accepted by durable artifacts and Remote projections. */
 export type ResearchJsonValue =
@@ -414,6 +473,7 @@ export interface ResearchStudioSnapshot {
   readonly gate: GateResult | null
   readonly evidence: EvidenceProjection
   readonly baseline: BaselineProjection
+  readonly design: DesignProjection
   readonly unlockedStageIds: readonly StageId[]
 }
 
@@ -449,3 +509,7 @@ export interface SaveEvidenceCardRequest { readonly projectId: string; readonly 
 export interface EvaluateEvidenceReadyRequest { readonly projectId: string }
 export interface SaveBaselineCardRequest { readonly projectId: string; readonly card: BaselineCard }
 export interface FreezeBaselineRequest { readonly projectId: string; readonly freeze: BaselineFreeze }
+export interface SaveModuleCardRequest { readonly projectId: string; readonly card: ModuleCard }
+export interface SaveCompatibilityRequest { readonly projectId: string; readonly record: CompatibilityRecord }
+export interface SaveClaimDraftRequest { readonly projectId: string; readonly claim: ClaimDraft }
+export interface FreezeDesignRequest { readonly projectId: string; readonly freeze: DesignFreeze }
