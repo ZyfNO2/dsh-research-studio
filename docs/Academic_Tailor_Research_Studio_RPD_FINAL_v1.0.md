@@ -1,4 +1,4 @@
-﻿# Academic Tailor Research Studio — Final RPD v1.0
+# Academic Tailor Research Studio — Final RPD v1.0
 
 > **产品名称**：Academic Tailor Research Studio
 > **形态**：DeepSeek Harness（DSH）插件 + Research Studio
@@ -101,6 +101,17 @@
 不是 DSH 魔改
 而是 Plugin + Adapter
 ```
+
+---
+
+# 2.1 实用主义实施准则与减负决断 (Pragmatic Execution Principles)
+
+针对实际科研落地与 MVP 研发边界，系统确立以下 4 条核心实施纪律：
+
+1. **专注文书与证据汇总（No Code Execution Burden）**：系统核心是科研推导、证据链沉淀、假设声明与文书引导工作；不承担重度代码沙箱调度、容器环境管理或实验代码自动运行。用户如何准备代码与产出实验数据由用户自行决定，系统负责结构化接收并建立 Evidence 溯源。
+2. **务实引导与学术诚信警告（Pragmatic Assistance with Integrity Warnings）**：面对负结果、实验 Trick 或论文调整诉求，系统不采取阻断式的强行回滚，而是顺应用户研究需要协助整理文书与实验记录；但系统必须在 UI 和审计报告中尽到显式的“学术诚信与审稿风险警告”提示义务。
+3. **证据离线优先与轻量导入（Offline-First Manual Import）**：MVP 阶段不强依赖外部学术 API（如 Semantic Scholar / arXiv 联网鉴权），优先提供 BibTeX、文本粘贴、结构化表单与本地文档拖拽解析等手动导入渠道，确保离线及任意网络环境下可用。
+4. **非阻塞式柔性门禁与上下文倾向（Flexible Gates with Context Affinity）**：Gate 系统作为“智能就绪度检查与建议”，不作为阻断用户跳步操作的硬卡点。各阶段支持双向上下文联动（例如选定 Baseline/方案后，自动为 Literature 学习提供倾向性上下文推荐）。
 
 ---
 
