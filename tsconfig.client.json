@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.base.client.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rewriteRelativeImportExtensions": false,
+    "types": ["node"]
+  },
+  "files": [],
+  "references": [
+    { "path": "./packages/ui-research-studio" }
+  ]
+}

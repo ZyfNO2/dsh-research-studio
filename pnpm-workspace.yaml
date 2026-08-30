@@ -1,2 +1,35 @@
 packages:
   - 'packages/*'
+  # Development companion: DSH ships the private framework/API packages that
+  # Research Studio consumes. Product code remains in this repository; this
+  # sibling checkout supplies only workspace dependency resolution and is
+  # pinned by docs/HANDOFF to the supported DSH baseline.
+  - '../deepseek-harness/vendor/*'
+  - '../deepseek-harness/packages/*/*'
+  - '../deepseek-harness/native/landlock-run'
+  - '../deepseek-harness/native/landlock-run/packages/*'
+  - '../deepseek-harness/apps/*'
+  - '../deepseek-harness/website'
+  - '../deepseek-harness/python/sdk-runtime'
+  # The product packages replace their same-named integration copies. Keeping
+  # both would make pnpm's workspace resolution ambiguous.
+  - '!../deepseek-harness/packages/research/research-studio'
+  - '!../deepseek-harness/packages/client/ui-research-studio'
+  - '!../deepseek-harness/packages/bundle/research-studio-bundle'
+
+# Mirror the companion checkout's reviewed build-script policy. The explicit
+# false entries are intentional denials; pnpm must not silently run scripts
+# merely because the product workspace resolves the DSH dependency closure.
+allowBuilds:
+  esbuild: true
+  node-pty: true
+  koffi: true
+  '@google/genai': false
+  protobufjs: false
+  node-addon-require-builtin: false
+
+# Typert emits Zod-backed runtime Remote codecs. The companion DSH checkout is
+# tested against this exact major/minor patch line, so product and framework
+# types must resolve to one copy during local development.
+overrides:
+  zod: 4.4.3

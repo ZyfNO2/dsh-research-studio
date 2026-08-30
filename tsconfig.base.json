@@ -1,0 +1,6 @@
+{
+  // The companion DSH config owns source aliases for private framework and
+  // API packages. Relative paths in inherited `paths` stay anchored at that
+  // file, while Research Studio's package projects remain local to this repo.
+  "extends": "../deepseek-harness/tsconfig.base.json"
+}

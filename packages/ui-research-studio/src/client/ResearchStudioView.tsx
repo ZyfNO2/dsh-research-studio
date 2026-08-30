@@ -1,7 +1,7 @@
 /** Host-backed Phase-2 Research Studio presentation. */
 
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import type { ResearchStudioSnapshot } from '@deepseek-ai/dsh-api-remotes/client'
+import type { ResearchStudioSnapshot } from '@deepseek-ai/dsh-research-studio/types'
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ResearchStudioLocaleKey } from './locales.ts'

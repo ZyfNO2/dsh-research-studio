@@ -2,7 +2,7 @@
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { ResearchStudioSnapshot } from '@deepseek-ai/dsh-api-remotes/client'
+import type { ResearchStudioSnapshot } from '@deepseek-ai/dsh-research-studio/types'
 import {
   ResearchStudioView,
   type ResearchStudioViewInjected,

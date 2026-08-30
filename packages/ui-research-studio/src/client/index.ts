@@ -4,6 +4,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+import researchStudioRemote from '@deepseek-ai/dsh-research-studio/remote'
 import { en, zh, type ResearchStudioLocaleKey } from './locales.ts'
 import {
   ResearchStudioView,
@@ -20,13 +21,14 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 /** Dictionary namespace owned by the Research Studio view. */
 export const NS = 'researchStudio'
 /** Services required by the conversation slot and generated Remote face. */
-export const inject = ['slots', 'locale', 'remote', 'remote.researchStudio']
+export const inject = ['slots', 'locale', 'remote']
 
 /**
  * Register the Host-backed Research Studio conversation view.
  * @param ctx - Client root context.
  */
-export function apply(ctx: Context): void {
+export async function apply(ctx: Context): Promise<() => Promise<void>> {
+  const disposeRemote = await ctx.remote.$mount(researchStudioRemote)
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-research-studio: dictionaries')
   const t = ctx.locale.bind(NS)
   const injected = (): ResearchStudioViewInjected => ({
@@ -53,6 +55,7 @@ export function apply(ctx: Context): void {
     label: () => t('view'),
     inject: injected,
   }, ResearchStudioView))
+  return async () => { await disposeRemote() }
 }
 
 export { ResearchStudioView } from './ResearchStudioView.tsx'

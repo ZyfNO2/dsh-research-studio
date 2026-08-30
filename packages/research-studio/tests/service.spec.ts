@@ -3,7 +3,7 @@ import { Context } from '@deepseek-ai/cordis'
 import Storage from '@deepseek-ai/dsh-storage'
 import SkillRegistry from '@deepseek-ai/dsh-skill'
 import { DomainFacility } from '@deepseek-ai/dsh-storage-domain'
-import { MemoryMediaPool, MemoryStorageBackend } from '../../../storage/storage-domain/tests/helpers/memory-backend.ts'
+import { MemoryMediaPool, MemoryStorageBackend } from '../../../../deepseek-harness/packages/storage/storage-domain/tests/helpers/memory-backend.ts'
 import ResearchStudioService from '../src/index.ts'
 
 describe('ResearchStudioService', () => {
