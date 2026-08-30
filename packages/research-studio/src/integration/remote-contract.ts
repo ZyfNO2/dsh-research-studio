@@ -18,11 +18,14 @@ import type {
   ArchiveResearchProjectRequest,
   CreateResearchProjectRequest,
   EvaluateResearchBriefRequest,
+  EvaluateEvidenceReadyRequest,
   RenameResearchProjectRequest,
   ResearchJsonValue,
   ResearchStudioSnapshot,
   SelectResearchProjectRequest,
   SuggestResearchBriefTutorRequest,
+  SaveEvidenceCardRequest,
+  SavePaperCardRequest,
   TutorSuggestion,
   UpdateResearchBriefRequest,
 } from '../domain/types.ts'
@@ -37,6 +40,9 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     updateBrief: (request: UpdateResearchBriefRequest) => Promise<RemoteResult<ResearchStudioSnapshot>>
     evaluateBriefReady: (request: EvaluateResearchBriefRequest) => Promise<RemoteResult<ResearchStudioSnapshot>>
     suggestBriefTutor: (request: SuggestResearchBriefTutorRequest) => Promise<RemoteResult<TutorSuggestion>>
+    savePaperCard: (request: SavePaperCardRequest) => Promise<RemoteResult<ResearchStudioSnapshot>>
+    saveEvidenceCard: (request: SaveEvidenceCardRequest) => Promise<RemoteResult<ResearchStudioSnapshot>>
+    evaluateEvidenceReady: (request: EvaluateEvidenceReadyRequest) => Promise<RemoteResult<ResearchStudioSnapshot>>
   }
   interface TypertRemoteMap {
     'researchStudio/snapshot': () => Promise<RemoteResult<ResearchStudioSnapshot>>
@@ -47,6 +53,9 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     'researchStudio/updateBrief': (request: UpdateResearchBriefRequest) => Promise<RemoteResult<ResearchStudioSnapshot>>
     'researchStudio/evaluateBriefReady': (request: EvaluateResearchBriefRequest) => Promise<RemoteResult<ResearchStudioSnapshot>>
     'researchStudio/suggestBriefTutor': (request: SuggestResearchBriefTutorRequest) => Promise<RemoteResult<TutorSuggestion>>
+    'researchStudio/savePaperCard': (request: SavePaperCardRequest) => Promise<RemoteResult<ResearchStudioSnapshot>>
+    'researchStudio/saveEvidenceCard': (request: SaveEvidenceCardRequest) => Promise<RemoteResult<ResearchStudioSnapshot>>
+    'researchStudio/evaluateEvidenceReady': (request: EvaluateEvidenceReadyRequest) => Promise<RemoteResult<ResearchStudioSnapshot>>
   }
   interface TypertRemoteNamespaceMap {
     researchStudio: TypertRemoteNamespace$726573656172636853747564696f
@@ -92,6 +101,11 @@ const snapshot = z.object({
     epistemic: z.enum(['unknown', 'proposed', 'inferred', 'verified', 'supported', 'refuted']), origin: dataOrigin,
   })),
   brief: z.object({ artifact, value: brief }).nullable(), briefHistory: z.array(artifact), gate: gate.nullable(),
+  evidence: z.object({
+    papers: z.array(z.object({ id: stringId, title: z.string(), authors: z.array(z.string()), year: z.number().optional(), venue: z.string().optional(), identifiers: z.object({ doi: z.string().optional(), arxiv: z.string().optional(), url: z.string().optional() }), sourceKind: z.enum(['paper', 'official-docs', 'repository', 'dataset', 'other']), provenance: z.object({ url: z.string(), locator: z.string() }), verification: z.enum(['unverified', 'verified', 'disputed', 'retracted']), license: z.string().optional() })),
+    cards: z.array(z.object({ id: stringId, paperId: stringId, locator: z.object({ url: z.string(), locator: z.string() }), statement: z.string(), polarity: z.enum(['supports', 'contradicts', 'context', 'unknown']), supports: z.array(z.enum(['brief.problemDomain', 'brief.constraints', 'baseline.candidate'])), verification: z.enum(['unverified', 'verified', 'disputed', 'retracted']), reviewerNote: z.string().optional() })),
+    gate: gate.nullable(),
+  }),
   unlockedStageIds: z.array(stringId),
 }) as unknown as z.ZodType<ResearchStudioSnapshot>
 const tutorSuggestion = z.object({
@@ -136,6 +150,9 @@ export const TYPERT_REMOTE: TypertRemoteContribution = {
     descriptor('updateBrief', snapshotResult, { typeSymbol: '@deepseek-ai/dsh-research-studio/types#UpdateResearchBriefRequest', schema: z.object({ projectId: stringId, expectedBriefArtifactId: stringId.nullable(), brief: briefPatch }) }),
     descriptor('evaluateBriefReady', snapshotResult, { typeSymbol: '@deepseek-ai/dsh-research-studio/types#EvaluateResearchBriefRequest', schema: z.object({ projectId: stringId, expectedBriefArtifactId: stringId }) }),
     descriptor('suggestBriefTutor', strict('@deepseek-ai/dsh-research-studio/types#TutorSuggestion', tutorSuggestion), { typeSymbol: '@deepseek-ai/dsh-research-studio/types#SuggestResearchBriefTutorRequest', schema: z.object({ projectId: stringId, expectedBriefArtifactId: stringId.nullable() }) }),
+    descriptor('savePaperCard', snapshotResult, { typeSymbol: '@deepseek-ai/dsh-research-studio/types#SavePaperCardRequest', schema: z.object({ projectId: stringId, card: z.object({ id: stringId, title: z.string(), authors: z.array(z.string()), year: z.number().optional(), venue: z.string().optional(), identifiers: z.object({ doi: z.string().optional(), arxiv: z.string().optional(), url: z.string().optional() }), sourceKind: z.enum(['paper', 'official-docs', 'repository', 'dataset', 'other']), provenance: z.object({ url: z.string(), locator: z.string() }), verification: z.enum(['unverified', 'verified', 'disputed', 'retracted']), license: z.string().optional() }) }) }),
+    descriptor('saveEvidenceCard', snapshotResult, { typeSymbol: '@deepseek-ai/dsh-research-studio/types#SaveEvidenceCardRequest', schema: z.object({ projectId: stringId, card: z.object({ id: stringId, paperId: stringId, locator: z.object({ url: z.string(), locator: z.string() }), statement: z.string(), polarity: z.enum(['supports', 'contradicts', 'context', 'unknown']), supports: z.array(z.enum(['brief.problemDomain', 'brief.constraints', 'baseline.candidate'])), verification: z.enum(['unverified', 'verified', 'disputed', 'retracted']), reviewerNote: z.string().optional() }) }) }),
+    descriptor('evaluateEvidenceReady', snapshotResult, { typeSymbol: '@deepseek-ai/dsh-research-studio/types#EvaluateEvidenceReadyRequest', schema: z.object({ projectId: stringId }) }),
   ],
 }
 

@@ -116,6 +116,12 @@ export interface EvidenceCard {
   readonly verification: VerificationStatus
   readonly reviewerNote?: string
 }
+/** Host projection for the Evidence slice; all entries originate from persisted artifacts. */
+export interface EvidenceProjection {
+  readonly papers: readonly PaperCard[]
+  readonly cards: readonly EvidenceCard[]
+  readonly gate: GateResult | null
+}
 
 /** JSON-safe value accepted by durable artifacts and Remote projections. */
 export type ResearchJsonValue =
@@ -376,6 +382,7 @@ export interface ResearchStudioSnapshot {
   readonly brief: ResearchBriefProjection | null
   readonly briefHistory: readonly ArtifactRecord[]
   readonly gate: GateResult | null
+  readonly evidence: EvidenceProjection
   readonly unlockedStageIds: readonly StageId[]
 }
 
@@ -403,3 +410,9 @@ export interface SuggestResearchBriefTutorRequest {
   readonly projectId: string
   readonly expectedBriefArtifactId: string | null
 }
+/** Save or revise one manually curated primary-source card. */
+export interface SavePaperCardRequest { readonly projectId: string; readonly card: PaperCard }
+/** Save or revise one manually curated evidence statement. */
+export interface SaveEvidenceCardRequest { readonly projectId: string; readonly card: EvidenceCard }
+/** Evaluate EVIDENCE_READY over the current persisted Evidence set. */
+export interface EvaluateEvidenceReadyRequest { readonly projectId: string }

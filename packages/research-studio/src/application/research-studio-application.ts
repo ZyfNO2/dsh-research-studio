@@ -5,9 +5,12 @@ import {
   createTutorSuggestion,
   diffArtifactContent,
   EMPTY_RESEARCH_BRIEF,
+  evaluateEvidenceReady,
   evaluateBriefReady,
   MVPResearchPreset,
   normalizeResearchBrief,
+  normalizeEvidenceCard,
+  normalizePaperCard,
   ResearchProjectId,
   StageId,
 } from '../domain/index.ts'
@@ -15,9 +18,12 @@ import type {
   ArtifactFieldDiff,
   ArtifactRecord,
   ArtifactStore,
+  EvidenceCard,
+  EvidenceProjection,
   EntityRegistry,
   GateEvaluationRecord,
   ResearchBriefPatch,
+  PaperCard,
   ResearchProjectRecord,
   ResearchProjectStore,
   ResearchStudioSnapshot,
@@ -32,6 +38,9 @@ import { ResearchStudioApplicationError } from './error.ts'
 const ACTIVE_PROJECT_MARKER = ArtifactId('research-studio.active-project')
 const BRIEF_TYPE = 'research-brief'
 const GATE_TYPE = 'gate-evaluation'
+const PAPER_TYPE = 'paper-card'
+const EVIDENCE_TYPE = 'evidence-card'
+const EVIDENCE_GATE_TYPE = 'evidence-gate-evaluation'
 const BRIEF_STAGE = StageId('research-brief')
 const EVIDENCE_STAGE = StageId('evidence')
 
@@ -83,7 +92,9 @@ export class ResearchStudioApplication {
     const project = storedProject?.archivedAt === undefined ? storedProject : undefined
     const brief = project === undefined ? undefined : this.latestBrief(project.id)
     const gate = project === undefined || brief === undefined ? undefined : this.latestGate(project.id, brief.id)
+    const evidence = project === undefined ? emptyEvidence() : this.evidenceProjection(project.id)
     const evidenceUnlocked = project?.currentStageId === EVIDENCE_STAGE && gate?.result.status === 'pass'
+    const designUnlocked = project?.currentStageId === StageId('research-design') && evidence.gate?.status === 'pass'
     const projectedProject = project === undefined ? null : {
       ...project,
       currentStageId: evidenceUnlocked ? EVIDENCE_STAGE : BRIEF_STAGE,
@@ -101,7 +112,10 @@ export class ResearchStudioApplication {
       },
       briefHistory: project === undefined ? [] : this.briefHistory(project.id),
       gate: gate?.result ?? null,
-      unlockedStageIds: evidenceUnlocked ? [BRIEF_STAGE, EVIDENCE_STAGE] : [BRIEF_STAGE],
+      evidence,
+      unlockedStageIds: designUnlocked
+        ? [BRIEF_STAGE, EVIDENCE_STAGE, StageId('research-design')]
+        : evidenceUnlocked ? [BRIEF_STAGE, EVIDENCE_STAGE] : [BRIEF_STAGE],
     }
   }
 
@@ -290,6 +304,52 @@ export class ResearchStudioApplication {
     )
   }
 
+  /** Persist one immutable PaperCard revision after the Brief has opened Evidence. */
+  savePaperCard(projectId: ResearchProjectId, input: PaperCard): Promise<ResearchStudioSnapshot> {
+    return this.mutate(async () => {
+      const project = this.requireEvidenceStage(projectId)
+      const card = normalizePaperCard(input)
+      if (card.id.trim() === '' || card.title === '' || card.provenance.url === '' || card.provenance.locator === '') {
+        throw appError('invalid-paper-card', 'PaperCard requires id, title, and a locatable primary source')
+      }
+      await this.putEvidenceArtifact(project, PAPER_TYPE, card.id, card)
+      return this.snapshot()
+    })
+  }
+
+  /** Persist one immutable EvidenceCard revision; cards cannot point at an absent PaperCard. */
+  saveEvidenceCard(projectId: ResearchProjectId, input: EvidenceCard): Promise<ResearchStudioSnapshot> {
+    return this.mutate(async () => {
+      const project = this.requireEvidenceStage(projectId)
+      const card = normalizeEvidenceCard(input)
+      if (card.id.trim() === '' || card.paperId.trim() === '' || card.statement === '') {
+        throw appError('invalid-evidence-card', 'EvidenceCard requires id, paperId, and a source statement')
+      }
+      if (!this.evidenceProjection(projectId).papers.some(paper => paper.id === card.paperId)) {
+        throw appError('evidence-paper-not-found', 'EvidenceCard must reference a PaperCard in the same project', { paperId: card.paperId })
+      }
+      await this.putEvidenceArtifact(project, EVIDENCE_TYPE, card.id, card)
+      return this.snapshot()
+    })
+  }
+
+  /** Persist a deterministic EVIDENCE_READY evaluation and unlock Research Design only on pass. */
+  evaluateEvidenceReady(projectId: ResearchProjectId): Promise<ResearchStudioSnapshot> {
+    return this.mutate(async () => {
+      const project = this.requireEvidenceStage(projectId)
+      const evidence = this.evidenceProjection(projectId)
+      const result = evaluateEvidenceReady(evidence.papers, evidence.cards)
+      const now = this.now()
+      await this.options.artifacts.put({
+        id: ArtifactId(`evidence-gate-${this.id()}`), projectId, type: EVIDENCE_GATE_TYPE, version: '1.0.0', origin: 'user',
+        content: { result: result as unknown as Record<string, never> }, lifecycle: result.status === 'pass' ? 'accepted' : 'rejected',
+        revision: 1, createdAt: now, updatedAt: now,
+      })
+      await this.options.projects.put({ ...project, currentStageId: result.status === 'pass' ? StageId('research-design') : EVIDENCE_STAGE, updatedAt: now })
+      return this.snapshot()
+    })
+  }
+
   /**
    * Compare two revisions from the same Brief lineage.
    * @param beforeId - earlier revision id.
@@ -331,6 +391,56 @@ export class ResearchStudioApplication {
       .filter(artifact => artifact.type === GATE_TYPE && artifact.content.briefArtifactId === briefId)
       .sort((left, right) => left.updatedAt.localeCompare(right.updatedAt))
       .at(-1)?.content as unknown as GateEvaluationRecord | undefined
+  }
+
+  private evidenceProjection(projectId: ResearchProjectId): EvidenceProjection {
+    const artifacts = this.options.artifacts.list(projectId)
+    const latest = (type: string) => {
+      const byCard = new Map<string, ArtifactRecord>()
+      for (const artifact of artifacts.filter(item => item.type === type)) {
+        const card = artifact.content.card as { id?: unknown } | undefined
+        if (typeof card?.id !== 'string') continue
+        const prior = byCard.get(card.id)
+        if (prior === undefined || (prior.revision ?? 0) < (artifact.revision ?? 0)) byCard.set(card.id, artifact)
+      }
+      return [...byCard.values()].map(item => item.content.card).filter(Boolean)
+    }
+    const gateArtifact = artifacts.filter(item => item.type === EVIDENCE_GATE_TYPE)
+      .sort((left, right) => left.updatedAt.localeCompare(right.updatedAt)).at(-1)
+    const latestEvidenceChange = artifacts.filter(item => item.type === PAPER_TYPE || item.type === EVIDENCE_TYPE)
+      .sort((left, right) => left.updatedAt.localeCompare(right.updatedAt)).at(-1)
+    const gate = latestEvidenceChange !== undefined && gateArtifact !== undefined
+      && latestEvidenceChange.updatedAt > gateArtifact.updatedAt
+      ? undefined
+      : gateArtifact?.content.result as GateEvaluationRecord['result'] | undefined
+    return {
+      papers: latest(PAPER_TYPE) as unknown as PaperCard[],
+      cards: latest(EVIDENCE_TYPE) as unknown as EvidenceCard[],
+      gate: gate ?? null,
+    }
+  }
+
+  private async putEvidenceArtifact<T extends PaperCard | EvidenceCard>(
+    project: ResearchProjectRecord, type: string, cardId: string, card: T,
+  ): Promise<void> {
+    const previous = this.options.artifacts.list(project.id).filter(item => item.type === type && (item.content.card as { id?: unknown })?.id === cardId)
+      .sort((left, right) => (left.revision ?? 0) - (right.revision ?? 0)).at(-1)
+    const now = this.now()
+    await this.options.artifacts.put({
+      id: ArtifactId(`${type}-${this.id()}`), projectId: project.id, type, version: '1.0.0', origin: 'user',
+      content: { card: card as unknown as import('../domain/types.ts').ResearchJsonValue },
+      ...(previous === undefined ? {} : { parentId: previous.id }), revision: (previous?.revision ?? 0) + 1,
+      lifecycle: 'candidate', createdAt: now, updatedAt: now,
+    })
+    await this.options.projects.put({ ...project, currentStageId: EVIDENCE_STAGE, updatedAt: now })
+  }
+
+  private requireEvidenceStage(projectId: ResearchProjectId): ResearchProjectRecord {
+    const project = this.requireActiveProject(projectId)
+    if (project.currentStageId !== EVIDENCE_STAGE && project.currentStageId !== StageId('research-design')) {
+      throw appError('evidence-stage-locked', 'Pass BRIEF_READY before recording Evidence')
+    }
+    return project
   }
 
   private sortedProjects(): readonly ResearchProjectRecord[] {
@@ -383,6 +493,10 @@ function requireText(value: string, field: string): string {
   const clean = value.trim()
   if (clean.length === 0) throw appError('invalid-input', `${field} must not be blank`, { field })
   return clean
+}
+
+function emptyEvidence(): EvidenceProjection {
+  return { papers: [], cards: [], gate: null }
 }
 
 function appError(code: string, message: string, details: Readonly<Record<string, unknown>> = {}) {

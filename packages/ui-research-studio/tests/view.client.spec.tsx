@@ -44,6 +44,9 @@ function props(overrides: Partial<ResearchStudioViewInjected> = {}): ResearchStu
     updateBrief: vi.fn(() => success(snapshot)),
     evaluateBriefReady: vi.fn(() => success(snapshot)),
     suggestBriefTutor: vi.fn(() => success({ id: 'tutor-a', questions: ['tutor.question.compute'], proposedPatch: { unknowns: ['Latency', '[unknown:compute]'] } })),
+    evaluateEvidenceReady: vi.fn(() => success(snapshot)),
+    savePaperCard: vi.fn(() => success(snapshot)),
+    saveEvidenceCard: vi.fn(() => success(snapshot)),
     ...overrides,
   }
   return {

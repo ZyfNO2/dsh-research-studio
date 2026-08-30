@@ -8,8 +8,11 @@ import type {
   ArchiveResearchProjectRequest,
   CreateResearchProjectRequest,
   EvaluateResearchBriefRequest,
+  EvaluateEvidenceReadyRequest,
   RenameResearchProjectRequest,
   ResearchStudioSnapshot,
+  SaveEvidenceCardRequest,
+  SavePaperCardRequest,
   SelectResearchProjectRequest,
   SuggestResearchBriefTutorRequest,
   TutorSuggestion,
@@ -125,6 +128,28 @@ export class ResearchStudioController extends TypertRemoteService {
     } catch (error) {
       throw toRemoteFailure(error)
     }
+  }
+
+  /** Save one manually reviewed PaperCard revision. */
+  @Remote
+  savePaperCard(request: SavePaperCardRequest): Promise<ResearchStudioSnapshot> {
+    return this.map(() => this.ctx.researchStudio.application.savePaperCard(
+      ResearchProjectId(request.projectId), request.card,
+    ))
+  }
+
+  /** Save one source-locatable EvidenceCard revision. */
+  @Remote
+  saveEvidenceCard(request: SaveEvidenceCardRequest): Promise<ResearchStudioSnapshot> {
+    return this.map(() => this.ctx.researchStudio.application.saveEvidenceCard(
+      ResearchProjectId(request.projectId), request.card,
+    ))
+  }
+
+  /** Evaluate the deterministic EVIDENCE_READY gate. */
+  @Remote
+  evaluateEvidenceReady(request: EvaluateEvidenceReadyRequest): Promise<ResearchStudioSnapshot> {
+    return this.map(() => this.ctx.researchStudio.application.evaluateEvidenceReady(ResearchProjectId(request.projectId)))
   }
 
   private async map<T>(operation: () => Promise<T>): Promise<T> {

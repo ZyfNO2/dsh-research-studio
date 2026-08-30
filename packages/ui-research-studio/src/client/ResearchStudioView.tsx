@@ -55,6 +55,10 @@ export interface ResearchStudioViewInjected {
   suggestBriefTutor: (
     request: { readonly projectId: string; readonly expectedBriefArtifactId: string | null },
   ) => Promise<ResearchStudioRemoteResult<ResearchStudioTutorSuggestion>>
+  /** Deterministically evaluate the Host-owned Evidence set. */
+  evaluateEvidenceReady: (request: { readonly projectId: string }) => Promise<ResearchStudioRemoteResult<ResearchStudioSnapshot>>
+  savePaperCard: (request: { readonly projectId: string; readonly card: import('@deepseek-ai/dsh-research-studio/types').PaperCard }) => Promise<ResearchStudioRemoteResult<ResearchStudioSnapshot>>
+  saveEvidenceCard: (request: { readonly projectId: string; readonly card: import('@deepseek-ai/dsh-research-studio/types').EvidenceCard }) => Promise<ResearchStudioRemoteResult<ResearchStudioSnapshot>>
 }
 
 /** Full component props assembled by the conversation view renderer. */
@@ -83,7 +87,7 @@ const LIST_FIELDS = ['constraints', 'unknowns'] as const
 /** Render project operations, Research Brief authoring, Gate state, and unlocked stages. */
 export function ResearchStudioView({
   snapshot, createProject, selectProject, renameProject, archiveProject, updateBrief,
-  evaluateBriefReady, suggestBriefTutor, t,
+  evaluateBriefReady, suggestBriefTutor, evaluateEvidenceReady, savePaperCard, saveEvidenceCard, t,
 }: ResearchStudioViewProps): ReactNode {
   const [request, setRequest] = useState(0)
   const [state, setState] = useState<ViewState>({ status: 'loading' })
@@ -93,6 +97,10 @@ export function ResearchStudioView({
   const [selectedStage, setSelectedStage] = useState('research-brief')
   const [tutor, setTutor] = useState<ResearchStudioTutorSuggestion | null>(null)
   const [pending, setPending] = useState(false)
+  const [paperTitle, setPaperTitle] = useState('')
+  const [paperUrl, setPaperUrl] = useState('')
+  const [evidenceStatement, setEvidenceStatement] = useState('')
+  const [evidenceTarget, setEvidenceTarget] = useState<'brief.problemDomain' | 'brief.constraints' | 'baseline.candidate'>('brief.problemDomain')
 
   useEffect(() => {
     let current = true
@@ -186,7 +194,13 @@ export function ResearchStudioView({
             <section className={css.statusPanel} aria-label={t('revisionHistory')}><h3>{t('revisionHistory')}</h3><p>{briefArtifactId === null ? t('noRevision') : `${t('revision')} ${data.brief?.artifact.revision ?? 1}`}</p><ol>{data.briefHistory.map(item => <li key={item.id}>{t('revisionPrefix')} {item.revision ?? 1}</li>)}</ol></section>
             <section className={css.statusPanel} aria-label={t('gateStatus')}><h3>{t('gateStatus')}</h3><p>{gateStatus === undefined ? t('gateNotRun') : t(gateKey(gateStatus))}</p>{data.gate !== null && data.gate.missing.length > 0 && <p>{t('missing')}: {data.gate.missing.map(field => t(briefFieldKey(field))).join(', ')}</p>}<button type="button" disabled={pending || briefArtifactId === null} onClick={() => { if (briefArtifactId !== null) void invoke(() => evaluateBriefReady({ projectId: String(project.id), expectedBriefArtifactId: briefArtifactId })) }}>{t('evaluateGate')}</button></section>
             <section className={css.statusPanel} aria-label={t('tutor')}><h3>{t('tutor')}</h3><button type="button" disabled={pending} onClick={() => { if (pending) return; setPending(true); void (async () => { try { const result = await suggestBriefTutor({ projectId: String(project.id), expectedBriefArtifactId: briefArtifactId }); if (result.ok) setTutor(result.value); else setState({ status: 'error', error: result.error.message }) } catch (error) { setState({ status: 'error', error: messageOf(error) }) } finally { setPending(false) } })() }}>{t('requestTutor')}</button>{tutor !== null && <div><h4>{t('tutorQuestions')}</h4><ul>{tutor.questions.map(question => <li key={question}>{t(tutorQuestionKey(question))}</li>)}</ul>{Object.keys(tutor.proposedPatch).length === 0 ? <p>{t('noTutorPatch')}</p> : <><h4>{t('tutorProposal')}</h4><p>{t('tutorProposalFields')}</p><ul>{Object.keys(tutor.proposedPatch).map(field => <li key={field}>{t(briefFieldKey(field))}</li>)}</ul><button type="button" disabled={pending} onClick={() => { void confirmTutor() }}>{t('confirmTutorProposal')}</button></>}</div>}</section>
-          </> : <><span className={css.sectionLabel}>{selected === undefined ? '' : stageTitle(selected.id, selected.title, t)}</span><h2>{selected === undefined ? '' : stageTitle(selected.id, selected.title, t)}</h2><p className={css.placeholder}>{selected?.id === 'evidence' ? t('evidenceReady') : t('emptyEntities')}</p></>}
+          </> : String(selected?.id) === 'evidence' ? <>
+            <span className={css.sectionLabel}>{t('stageEvidence')}</span><h2>{t('evidenceSet')}</h2>
+            <section className={css.statusPanel} aria-label={t('evidenceSet')}><h3>{t('evidenceGate')}</h3><p>{data.evidence.gate === null ? t('gateNotRun') : t(gateKey(data.evidence.gate.status))}</p>{data.evidence.gate?.missing.length ? <p>{t('missing')}: {data.evidence.gate.missing.join(', ')}</p> : null}<button type="button" disabled={pending || project === null} onClick={() => { if (project !== null) void invoke(() => evaluateEvidenceReady({ projectId: String(project.id) })) }}>{t('evaluateEvidence')}</button></section>
+            <section className={css.statusPanel}><h3>{t('papers')}</h3>{data.evidence.papers.length === 0 ? <p>{t('noEvidence')}</p> : <ul>{data.evidence.papers.map(paper => <li key={paper.id}>{paper.title} · {paper.verification}</li>)}</ul>}<h3>{t('evidenceCards')}</h3>{data.evidence.cards.length === 0 ? <p>{t('noEvidence')}</p> : <ul>{data.evidence.cards.map(card => <li key={card.id}>{card.statement} · {card.supports.join(', ')}</li>)}</ul>}</section>
+            <section className={css.statusPanel}><h3>{t('addPaper')}</h3><form onSubmit={(event) => { event.preventDefault(); if (project === null || paperTitle.trim() === '' || paperUrl.trim() === '') return; const id = `paper-${paperTitle.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`; void invoke(() => savePaperCard({ projectId: String(project.id), card: { id, title: paperTitle, authors: [], identifiers: { url: paperUrl }, sourceKind: 'paper', provenance: { url: paperUrl, locator: 'manual entry' }, verification: 'unverified' } })) }}><label>{t('paperTitle')}<input value={paperTitle} onChange={event => { setPaperTitle(event.target.value) }} /></label><label>{t('sourceUrl')}<input value={paperUrl} onChange={event => { setPaperUrl(event.target.value) }} /></label><button type="submit" disabled={pending || paperTitle.trim() === '' || paperUrl.trim() === ''}>{t('savePaper')}</button></form>
+            <h3>{t('addEvidence')}</h3><form onSubmit={(event) => { event.preventDefault(); if (project === null || data.evidence.papers[0] === undefined || evidenceStatement.trim() === '') return; void invoke(() => saveEvidenceCard({ projectId: String(project.id), card: { id: `evidence-${Date.now()}`, paperId: data.evidence.papers[0]!.id, locator: { url: data.evidence.papers[0]!.provenance.url, locator: 'manual entry' }, statement: evidenceStatement, polarity: 'context', supports: [evidenceTarget], verification: 'unverified' } })) }}><label>{t('evidenceStatement')}<textarea value={evidenceStatement} onChange={event => { setEvidenceStatement(event.target.value) }} /></label><label>{t('evidenceTarget')}<select value={evidenceTarget} onChange={event => { setEvidenceTarget(event.target.value as typeof evidenceTarget) }}><option value="brief.problemDomain">brief.problemDomain</option><option value="brief.constraints">brief.constraints</option><option value="baseline.candidate">baseline.candidate</option></select></label><button type="submit" disabled={pending || data.evidence.papers[0] === undefined || evidenceStatement.trim() === ''}>{t('saveEvidence')}</button></form></section>
+          </> : <><span className={css.sectionLabel}>{selected === undefined ? '' : stageTitle(selected.id, selected.title, t)}</span><h2>{selected === undefined ? '' : stageTitle(selected.id, selected.title, t)}</h2><p className={css.placeholder}>{t('emptyEntities')}</p></>}
         </article>
       </section>
     </main>

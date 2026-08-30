@@ -102,6 +102,35 @@ describe('ResearchStudioApplication', () => {
     expect(suggestion.proposedPatch.unknowns?.every(item => item.startsWith('[unknown:'))).toBe(true)
     expect(fixture.artifacts.list(projectId).filter(item => item.type === 'research-brief')).toHaveLength(1)
   })
+
+  it('persists evidence revisions and unlocks Research Design only after verified coverage', async () => {
+    const fixture = createFixture()
+    const created = await fixture.application.createProject('Evidence study', MVPResearchPreset.id)
+    const projectId = created.project!.id
+    const saved = await fixture.application.updateBrief(projectId, null, completeBrief)
+    await fixture.application.evaluateBriefReady(projectId, saved.brief!.artifact.id)
+
+    const paper = {
+      id: 'paper-primary', title: 'Primary source', authors: ['Author'], identifiers: {}, sourceKind: 'paper' as const,
+      provenance: { url: 'https://example.test/paper', locator: 'p. 1' }, verification: 'verified' as const,
+    }
+    await fixture.application.savePaperCard(projectId, paper)
+    for (const target of ['brief.problemDomain', 'brief.constraints', 'baseline.candidate'] as const) {
+      await fixture.application.saveEvidenceCard(projectId, {
+        id: `evidence-${target}`, paperId: paper.id, locator: { url: paper.provenance.url, locator: 'sec. 2' },
+        statement: `Primary-source fact for ${target}`, polarity: 'context', supports: [target], verification: 'verified',
+      })
+    }
+    const passed = await fixture.application.evaluateEvidenceReady(projectId)
+    expect(passed.evidence).toMatchObject({ gate: { status: 'pass' } })
+    expect(passed.unlockedStageIds).toEqual(['research-brief', 'evidence', 'research-design'])
+
+    const revised = await fixture.application.savePaperCard(projectId, { ...paper, title: 'Primary source revised' })
+    expect(revised.evidence.gate).toBeNull()
+    expect(revised.unlockedStageIds).toEqual(['research-brief', 'evidence'])
+    expect(revised.evidence.papers).toHaveLength(1)
+    expect(revised.evidence.papers[0]?.title).toBe('Primary source revised')
+  })
 })
 
 function createFixture() {

@@ -6,7 +6,8 @@ describe('Research Studio external Remote contract', () => {
     expect(remote.package).toBe('@deepseek-ai/dsh-research-studio')
     expect(remote.descriptors.map(descriptor => descriptor.method)).toEqual([
       'snapshot', 'createProject', 'selectProject', 'renameProject', 'archiveProject',
-      'updateBrief', 'evaluateBriefReady', 'suggestBriefTutor',
+      'updateBrief', 'evaluateBriefReady', 'suggestBriefTutor', 'savePaperCard',
+      'saveEvidenceCard', 'evaluateEvidenceReady',
     ])
     for (const descriptor of remote.descriptors) {
       expect(descriptor.result.mode).toBe('strict')
